@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { User, Globe, History, Heart, LogOut } from 'lucide-react-native';
+import { User, Globe, History, Heart, LogOut, Settings } from 'lucide-react-native';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
 
@@ -20,9 +20,9 @@ export default function ProfileScreen() {
   const handleSignOut = () => {
     Alert.alert(
       t('profile.signOut'),
-      'Are you sure you want to sign out?',
+      '¿Estás seguro de que quieres cerrar sesión?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Cancelar', style: 'cancel' },
         {
           text: t('profile.signOut'),
           style: 'destructive',
@@ -38,6 +38,56 @@ export default function ProfileScreen() {
   const toggleLanguage = () => {
     const newLanguage = language === 'es' ? 'en' : 'es';
     changeLanguage(newLanguage);
+  };
+
+  const switchToTestUser = () => {
+    Alert.alert(
+      'Cambiar Usuario',
+      'Selecciona el tipo de usuario para probar:',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Usuario Normal',
+          onPress: async () => {
+            await signOut();
+            // Auto-login as test user
+            setTimeout(() => {
+              Alert.alert(
+                'Usuario de Prueba',
+                'Usa estas credenciales:\nEmail: user@bikeandbed.com\nPassword: 123456'
+              );
+              router.replace('/auth');
+            }, 500);
+          },
+        },
+        {
+          text: 'Anfitrión',
+          onPress: async () => {
+            await signOut();
+            setTimeout(() => {
+              Alert.alert(
+                'Anfitrión de Prueba',
+                'Usa estas credenciales:\nEmail: host@bikeandbed.com\nPassword: 123456'
+              );
+              router.replace('/auth');
+            }, 500);
+          },
+        },
+        {
+          text: 'Administrador',
+          onPress: async () => {
+            await signOut();
+            setTimeout(() => {
+              Alert.alert(
+                'Admin de Prueba',
+                'Usa estas credenciales:\nEmail: admin@bikeandbed.com\nPassword: 123456'
+              );
+              router.replace('/auth');
+            }, 500);
+          },
+        },
+      ]
+    );
   };
 
   const menuItems = [
@@ -56,6 +106,12 @@ export default function ProfileScreen() {
       icon: Heart,
       title: t('profile.favorites'),
       onPress: () => router.push('/(tabs)/favorites'),
+    },
+    {
+      icon: Settings,
+      title: 'Cambiar Usuario (Demo)',
+      subtitle: 'Probar diferentes roles',
+      onPress: switchToTestUser,
     },
   ];
 
@@ -83,6 +139,20 @@ export default function ProfileScreen() {
             {profile?.first_name} {profile?.last_name}
           </Text>
           <Text style={styles.email}>{profile?.email}</Text>
+          
+          {/* Role Badge */}
+          <View style={[
+            styles.roleBadge,
+            {
+              backgroundColor: profile?.role === 'admin' ? '#EF4444' :
+                              profile?.role === 'host' ? '#F59E0B' : '#4ADE80'
+            }
+          ]}>
+            <Text style={styles.roleText}>
+              {profile?.role === 'admin' ? 'Administrador' :
+               profile?.role === 'host' ? 'Anfitrión' : 'Usuario'}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.menuSection}>
@@ -167,6 +237,17 @@ const styles = StyleSheet.create({
   email: {
     color: '#9CA3AF',
     fontSize: 16,
+    marginBottom: 12,
+  },
+  roleBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  roleText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   menuSection: {
     flex: 1,

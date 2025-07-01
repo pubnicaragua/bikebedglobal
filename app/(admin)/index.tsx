@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Users, Home, Calendar, DollarSign, Route, TrendingUp } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
@@ -183,7 +184,10 @@ export default function AdminDashboardScreen() {
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Gestión del Sistema</Text>
           
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/(admin)/users')}
+          >
             <View style={styles.actionIcon}>
               <Users size={20} color="#4ADE80" />
             </View>
@@ -193,7 +197,10 @@ export default function AdminDashboardScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/(admin)/hosts')}
+          >
             <View style={styles.actionIcon}>
               <Home size={20} color="#F59E0B" />
             </View>

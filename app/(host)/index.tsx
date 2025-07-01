@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Home, DollarSign, Star, MessageCircle, Calendar, Bike } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
@@ -168,7 +169,10 @@ export default function HostDashboardScreen() {
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
           
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/(host)/accommodations')}
+          >
             <View style={styles.actionIcon}>
               <Home size={20} color="#4ADE80" />
             </View>
@@ -188,7 +192,10 @@ export default function HostDashboardScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/(host)/bookings')}
+          >
             <View style={styles.actionIcon}>
               <Calendar size={20} color="#4ADE80" />
             </View>
@@ -199,7 +206,10 @@ export default function HostDashboardScreen() {
           </TouchableOpacity>
 
           {stats.unreadMessages > 0 && (
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => router.push('/chat')}
+            >
               <View style={styles.actionIcon}>
                 <MessageCircle size={20} color="#EF4444" />
               </View>
