@@ -15,6 +15,10 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(admin)" />
         <Stack.Screen name="(host)" />
+        <Stack.Screen name="accommodation/[id]" />
+        <Stack.Screen name="route/[id]" />
+        <Stack.Screen name="booking/create" />
+        <Stack.Screen name="chat/index" />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="light" backgroundColor="#111827" />
