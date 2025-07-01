@@ -1,0 +1,174 @@
+{
+  "auth": {
+    "login": {
+      "title": "Sign In",
+      "email": "Email",
+      "password": "Password",
+      "signIn": "Sign In",
+      "forgotPassword": "Forgot your password?",
+      "noAccount": "Don't have an account yet?",
+      "register": "Sign up with us"
+    },
+    "register": {
+      "title": "Create Account",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "signUp": "Sign Up",
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign In"
+    },
+    "forgot": {
+      "title": "Reset Password",
+      "email": "Email",
+      "send": "Send",
+      "backToLogin": "Back to Sign In"
+    }
+  },
+  "home": {
+    "search": "Search",
+    "chooseLocation": "Choose location",
+    "filters": {
+      "all": "All",
+      "nearby": "Nearby",
+      "popular": "Popular",
+      "beach": "Beach",
+      "cheap": "Cheap",
+      "expensive": "Expensive"
+    },
+    "sections": {
+      "recommended": "Recommended for you",
+      "routes": "Recommended routes",
+      "services": "Recommended services",
+      "seeAll": "See all"
+    }
+  },
+  "explore": {
+    "title": "Explore",
+    "filters": {
+      "accommodations": "Accommodations",
+      "bikes": "Bikes",
+      "routes": "Routes",
+      "all": "Food"
+    },
+    "viewDetails": "View details"
+  },
+  "favorites": {
+    "title": "Saved",
+    "sections": {
+      "thisMonth": "Saved this month",
+      "months": {
+        "january": "Saved in January",
+        "february": "Saved in February",
+        "march": "Saved in March",
+        "april": "Saved in April",
+        "may": "Saved in May",
+        "june": "Saved in June",
+        "july": "Saved in July",
+        "august": "Saved in August",
+        "september": "Saved in September",
+        "october": "Saved in October",
+        "november": "Saved in November",
+        "december": "Saved in December"
+      }
+    },
+    "tabs": {
+      "accommodations": "Accommodations",
+      "routes": "Routes",
+      "bikes": "Bikes"
+    }
+  },
+  "bookings": {
+    "title": "My Reservations",
+    "status": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "cancelled": "Cancelled",
+      "completed": "Completed"
+    },
+    "actions": {
+      "modify": "Modify or cancel reservation",
+      "contact": "Contact the host"
+    },
+    "reservedFrom": "Reserved from",
+    "to": "to",
+    "hostInfo": "Host of my reservation",
+    "location": "Accommodation location"
+  },
+  "profile": {
+    "title": "My Profile",
+    "language": "Language",
+    "history": "History",
+    "favorites": "Favorites",
+    "signOut": "Sign Out"
+  },
+  "accommodation": {
+    "perNight": "night",
+    "guests": "guests",
+    "bedrooms": "bedrooms",
+    "bathrooms": "bathrooms",
+    "amenities": "What this place offers",
+    "host": "Host",
+    "yearsHosting": "years hosting",
+    "reviews": "Reviews",
+    "location": "Where you'll be",
+    "howToGet": "How to get there?",
+    "reserve": "Reserve",
+    "contactHost": "Contact the host",
+    "topAccommodations": "In the top 10% of accommodations",
+    "topDescription": "This accommodation stands out according to ratings",
+    "features": {
+      "autonomousArrival": "Self check-in",
+      "autonomousDescription": "Check yourself in with the keypad",
+      "peaceAndQuiet": "Peace and quiet",
+      "peaceDescription": "This accommodation is located in a quiet area"
+    }
+  },
+  "route": {
+    "difficulty": "Difficulty",
+    "distance": "Distance",
+    "elevation": "Elevation",
+    "estimatedTime": "Estimated time",
+    "startLocation": "Start point",
+    "endLocation": "End point",
+    "pointsOfInterest": "Points of interest",
+    "reviews": "Reviews",
+    "save": "Save",
+    "touristRoute": "Tourist route"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "retry": "Retry",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "done": "Done",
+    "skip": "Skip",
+    "viewAll": "View all",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "map": "Map",
+    "list": "List",
+    "grid": "Grid"
+  },
+  "navigation": {
+    "home": "Home",
+    "explore": "Explore",
+    "favorites": "Saved",
+    "bookings": "Bookings",
+    "profile": "My Profile"
+  }
+}

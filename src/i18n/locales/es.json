@@ -1,0 +1,174 @@
+{
+  "auth": {
+    "login": {
+      "title": "Inicia sesión",
+      "email": "Correo",
+      "password": "Contraseña",
+      "signIn": "Iniciar sesión",
+      "forgotPassword": "¿Olvidaste tu contraseña?",
+      "noAccount": "¿Todavía no estás registrado?",
+      "register": "Regístrate con nosotros"
+    },
+    "register": {
+      "title": "Crear cuenta",
+      "firstName": "Nombre",
+      "lastName": "Apellido",
+      "email": "Correo",
+      "password": "Contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "signUp": "Registrarse",
+      "hasAccount": "¿Ya tienes cuenta?",
+      "signIn": "Inicia sesión"
+    },
+    "forgot": {
+      "title": "Recuperar contraseña",
+      "email": "Correo",
+      "send": "Enviar",
+      "backToLogin": "Volver al inicio de sesión"
+    }
+  },
+  "home": {
+    "search": "Buscar",
+    "chooseLocation": "Escoger ubicación",
+    "filters": {
+      "all": "Todos",
+      "nearby": "Cerca",
+      "popular": "Populares",
+      "beach": "De playa",
+      "cheap": "Barato",
+      "expensive": "Caro"
+    },
+    "sections": {
+      "recommended": "Recomendado para ti",
+      "routes": "Rutas recomendadas",
+      "services": "Servicios recomendados",
+      "seeAll": "Ver todos"
+    }
+  },
+  "explore": {
+    "title": "Explorar",
+    "filters": {
+      "accommodations": "Hospedajes",
+      "bikes": "Bicicletas",
+      "routes": "Rutas",
+      "all": "Comida"
+    },
+    "viewDetails": "Ver detalle"
+  },
+  "favorites": {
+    "title": "Guardado",
+    "sections": {
+      "thisMonth": "Guardado este mes",
+      "months": {
+        "january": "Guardado en enero",
+        "february": "Guardado en febrero",
+        "march": "Guardado en marzo",
+        "april": "Guardado en abril",
+        "may": "Guardado en mayo",
+        "june": "Guardado en junio",
+        "july": "Guardado en julio",
+        "august": "Guardado en agosto",
+        "september": "Guardado en septiembre",
+        "october": "Guardado en octubre",
+        "november": "Guardado en noviembre",
+        "december": "Guardado en diciembre"
+      }
+    },
+    "tabs": {
+      "accommodations": "Hospedajes",
+      "routes": "Rutas",
+      "bikes": "Bicicletas"
+    }
+  },
+  "bookings": {
+    "title": "Mis reservaciones",
+    "status": {
+      "pending": "Pendiente",
+      "confirmed": "Reservado",
+      "cancelled": "Cancelado",
+      "completed": "Completado"
+    },
+    "actions": {
+      "modify": "Modificar o cancelar reservación",
+      "contact": "Comunicarse con el anfitrión"
+    },
+    "reservedFrom": "Reservado del",
+    "to": "al",
+    "hostInfo": "Anfitrión de mi reserva",
+    "location": "Ubicación del hospedaje"
+  },
+  "profile": {
+    "title": "Mi perfil",
+    "language": "Idioma",
+    "history": "Historial",
+    "favorites": "Favoritos",
+    "signOut": "Cerrar sesión"
+  },
+  "accommodation": {
+    "perNight": "noche",
+    "guests": "huéspedes",
+    "bedrooms": "habitaciones",
+    "bathrooms": "baños",
+    "amenities": "Lo que ofrece este lugar",
+    "host": "Anfitrión",
+    "yearsHosting": "años anfitrionando",
+    "reviews": "Reseñas",
+    "location": "A dónde irás",
+    "howToGet": "¿Cómo llegar?",
+    "reserve": "Reservar",
+    "contactHost": "Comunícate con el anfitrión",
+    "topAccommodations": "En el 10% de mejores alojamientos",
+    "topDescription": "Este alojamiento sobresale según las valoraciones",
+    "features": {
+      "autonomousArrival": "Llegada autónoma",
+      "autonomousDescription": "Realiza una llegada fácilmente mediante la cerradura con teclado",
+      "peaceAndQuiet": "Paz y tranquilidad",
+      "peaceDescription": "Este alojamiento se encuentra en una zona tranquila"
+    }
+  },
+  "route": {
+    "difficulty": "Dificultad",
+    "distance": "Distancia",
+    "elevation": "Elevación",
+    "estimatedTime": "Tiempo estimado",
+    "startLocation": "Punto de inicio",
+    "endLocation": "Punto final",
+    "pointsOfInterest": "Puntos de interés",
+    "reviews": "Reseñas",
+    "save": "Guardar",
+    "touristRoute": "Ruta turística"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "retry": "Reintentar",
+    "close": "Cerrar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "done": "Hecho",
+    "skip": "Omitir",
+    "viewAll": "Ver todos",
+    "showMore": "Mostrar más",
+    "showLess": "Mostrar menos",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "sort": "Ordenar",
+    "map": "Mapa",
+    "list": "Lista",
+    "grid": "Cuadrícula"
+  },
+  "navigation": {
+    "home": "Inicio",
+    "explore": "Explorar",
+    "favorites": "Guardado",
+    "bookings": "Reservas",
+    "profile": "Mi perfil"
+  }
+}
