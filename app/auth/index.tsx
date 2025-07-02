@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +21,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<'google' | 'facebook' | null>(null);
   const { signIn } = useAuth();
   const { t, changeLanguage, language } = useI18n();
 
@@ -38,41 +41,69 @@ export default function LoginScreen() {
     }
 
     if (data.user) {
-      try {
-        // Fetch user profile to determine role
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single();
-
-        setLoading(false);
-
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          router.replace('/(tabs)');
-          return;
-        }
-
-        // Redirect based on user role
-        switch (profile.role) {
-          case 'admin':
-            router.replace('/(admin)');
-            break;
-          case 'host':
-            router.replace('/(host)');
-            break;
-          default:
-            router.replace('/(tabs)');
-            break;
-        }
-      } catch (error) {
-        setLoading(false);
-        console.error('Error during role check:', error);
-        router.replace('/(tabs)');
-      }
+      await handlePostLogin(data.user.id);
     } else {
       setLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+    setSocialLoading(provider);
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: 'bikebedglobal://auth-callback/',
+        },
+      });
+
+      if (error) throw error;
+
+      // No necesitamos redirigir aquí, ya que el listener de onAuthStateChange lo manejará
+    } catch (error) {
+      setSocialLoading(null);
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to sign in with ' + provider
+      );
+    }
+  };
+
+  const handlePostLogin = async (userId: string) => {
+    try {
+      // Fetch user profile to determine role
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      setLoading(false);
+      setSocialLoading(null);
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        router.replace('/(tabs)');
+        return;
+      }
+
+      // Redirect based on user role
+      switch (profile.role) {
+        case 'admin':
+          router.replace('/(admin)');
+          break;
+        case 'host':
+          router.replace('/(host)');
+          break;
+        default:
+          router.replace('/(tabs)');
+          break;
+      }
+    } catch (error) {
+      setLoading(false);
+      setSocialLoading(null);
+      console.error('Error during role check:', error);
+      router.replace('/(tabs)');
     }
   };
 
@@ -140,6 +171,51 @@ export default function LoginScreen() {
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>{t('auth.login.or')}</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Botones de redes sociales */}
+          <View style={styles.socialButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.socialButton, styles.googleButton]}
+              onPress={() => handleSocialLogin('google')}
+              disabled={!!socialLoading}
+            >
+              {socialLoading === 'google' ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Image
+                    source={require('assets/images/icons8-logo-de-google-48.png')}
+                    style={styles.socialIcon}
+                  />
+                  <Text style={styles.socialButtonText}>
+                    {t('auth.social.google')}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.socialButton, styles.facebookButton]}
+              onPress={() => handleSocialLogin('facebook')}
+              disabled={!!socialLoading}
+            >
+              {socialLoading === 'facebook' ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Image
+                    source={require('assets/images/icons8-facebook-nuevo-48.png')}
+                    style={styles.socialIcon}
+                  />
+                  <Text style={styles.socialButtonText}>
+                    {t('auth.social.facebook')}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
@@ -253,13 +329,47 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   divider: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginVertical: 24,
   },
   dividerLine: {
-    width: '100%',
+    flex: 1,
     height: 1,
     backgroundColor: '#374151',
+  },
+  dividerText: {
+    color: '#9CA3AF',
+    paddingHorizontal: 10,
+    fontSize: 14,
+  },
+  socialButtonsContainer: {
+    marginBottom: 24,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  googleButton: {
+    backgroundColor: '#DB4437',
+  },
+  facebookButton: {
+    backgroundColor: '#3B5998',
+  },
+  socialIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 12,
+  },
+  socialButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   footer: {
     alignItems: 'center',

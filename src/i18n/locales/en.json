@@ -7,7 +7,11 @@
       "signIn": "Sign In",
       "forgotPassword": "Forgot your password?",
       "noAccount": "Don't have an account yet?",
-      "register": "Sign up with us"
+      "register": "Sign up with us",
+      "social": {
+      "google": "Continue with Google",
+      "facebook": "Continue with Facebook"
+    }
     },
     "register": {
       "title": "Create Account",
@@ -18,13 +22,24 @@
       "confirmPassword": "Confirm Password",
       "signUp": "Sign Up",
       "hasAccount": "Already have an account?",
-      "signIn": "Sign In"
+      "signIn": "Sign In",
+      "success": "Registration successful!"
     },
     "forgot": {
       "title": "Reset Password",
       "email": "Email",
       "send": "Send",
       "backToLogin": "Back to Sign In"
+    },
+    "social": {
+      "google": "Continue with Google",
+      "facebook": "Continue with Facebook"
+    },
+    "or": "OR",
+    "errors": {
+      "fillAllFields": "Please fill all fields",
+      "passwordsNotMatch": "Passwords don't match",
+      "passwordLength": "Password must be at least 6 characters"
     }
   },
   "home": {
@@ -102,7 +117,8 @@
     "language": "Language",
     "history": "History",
     "favorites": "Favorites",
-    "signOut": "Sign Out"
+    "signOut": "Sign Out",
+    "deleteAccount": "Delete my account"
   },
   "accommodation": {
     "perNight": "night",

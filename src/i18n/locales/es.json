@@ -1,45 +1,56 @@
 {
   "auth": {
     "login": {
-      "title": "Inicia sesión",
-      "email": "Correo",
+      "title": "Iniciar Sesión",
+      "email": "Correo electrónico",
       "password": "Contraseña",
-      "signIn": "Iniciar sesión",
+      "signIn": "Iniciar Sesión",
       "forgotPassword": "¿Olvidaste tu contraseña?",
-      "noAccount": "¿Todavía no estás registrado?",
+      "noAccount": "¿No tienes una cuenta aún?",
       "register": "Regístrate con nosotros"
     },
     "register": {
-      "title": "Crear cuenta",
+      "title": "Crear Cuenta",
       "firstName": "Nombre",
       "lastName": "Apellido",
-      "email": "Correo",
+      "email": "Correo electrónico",
       "password": "Contraseña",
-      "confirmPassword": "Confirmar contraseña",
+      "confirmPassword": "Confirmar Contraseña",
       "signUp": "Registrarse",
-      "hasAccount": "¿Ya tienes cuenta?",
-      "signIn": "Inicia sesión"
+      "hasAccount": "¿Ya tienes una cuenta?",
+      "signIn": "Iniciar Sesión",
+      "success": "¡Registro exitoso!"
     },
     "forgot": {
-      "title": "Recuperar contraseña",
-      "email": "Correo",
+      "title": "Restablecer Contraseña",
+      "email": "Correo electrónico",
       "send": "Enviar",
-      "backToLogin": "Volver al inicio de sesión"
+      "backToLogin": "Volver a Iniciar Sesión"
+    },
+    "social": {
+      "google": "Continuar con Google",
+      "facebook": "Continuar con Facebook"
+    },
+    "or": "O",
+    "errors": {
+      "fillAllFields": "Por favor completa todos los campos",
+      "passwordsNotMatch": "Las contraseñas no coinciden",
+      "passwordLength": "La contraseña debe tener al menos 6 caracteres"
     }
   },
   "home": {
     "search": "Buscar",
-    "chooseLocation": "Escoger ubicación",
+    "chooseLocation": "Elegir ubicación",
     "filters": {
       "all": "Todos",
-      "nearby": "Cerca",
+      "nearby": "Cercanos",
       "popular": "Populares",
-      "beach": "De playa",
-      "cheap": "Barato",
-      "expensive": "Caro"
+      "beach": "Playa",
+      "cheap": "Económicos",
+      "expensive": "Costosos"
     },
     "sections": {
-      "recommended": "Recomendado para ti",
+      "recommended": "Recomendados para ti",
       "routes": "Rutas recomendadas",
       "services": "Servicios recomendados",
       "seeAll": "Ver todos"
@@ -48,61 +59,62 @@
   "explore": {
     "title": "Explorar",
     "filters": {
-      "accommodations": "Hospedajes",
+      "accommodations": "Alojamientos",
       "bikes": "Bicicletas",
       "routes": "Rutas",
       "all": "Comida"
     },
-    "viewDetails": "Ver detalle"
+    "viewDetails": "Ver detalles"
   },
   "favorites": {
-    "title": "Guardado",
+    "title": "Guardados",
     "sections": {
-      "thisMonth": "Guardado este mes",
+      "thisMonth": "Guardados este mes",
       "months": {
-        "january": "Guardado en enero",
-        "february": "Guardado en febrero",
-        "march": "Guardado en marzo",
-        "april": "Guardado en abril",
-        "may": "Guardado en mayo",
-        "june": "Guardado en junio",
-        "july": "Guardado en julio",
-        "august": "Guardado en agosto",
-        "september": "Guardado en septiembre",
-        "october": "Guardado en octubre",
-        "november": "Guardado en noviembre",
-        "december": "Guardado en diciembre"
+        "january": "Guardados en Enero",
+        "february": "Guardados en Febrero",
+        "march": "Guardados en Marzo",
+        "april": "Guardados en Abril",
+        "may": "Guardados en Mayo",
+        "june": "Guardados en Junio",
+        "july": "Guardados en Julio",
+        "august": "Guardados en Agosto",
+        "september": "Guardados en Septiembre",
+        "october": "Guardados en Octubre",
+        "november": "Guardados en Noviembre",
+        "december": "Guardados en Diciembre"
       }
     },
     "tabs": {
-      "accommodations": "Hospedajes",
+      "accommodations": "Alojamientos",
       "routes": "Rutas",
       "bikes": "Bicicletas"
     }
   },
   "bookings": {
-    "title": "Mis reservaciones",
+    "title": "Mis Reservas",
     "status": {
       "pending": "Pendiente",
-      "confirmed": "Reservado",
-      "cancelled": "Cancelado",
-      "completed": "Completado"
+      "confirmed": "Confirmada",
+      "cancelled": "Cancelada",
+      "completed": "Completada"
     },
     "actions": {
-      "modify": "Modificar o cancelar reservación",
-      "contact": "Comunicarse con el anfitrión"
+      "modify": "Modificar o cancelar reserva",
+      "contact": "Contactar al anfitrión"
     },
-    "reservedFrom": "Reservado del",
-    "to": "al",
+    "reservedFrom": "Reservado desde",
+    "to": "hasta",
     "hostInfo": "Anfitrión de mi reserva",
-    "location": "Ubicación del hospedaje"
+    "location": "Ubicación del alojamiento"
   },
   "profile": {
-    "title": "Mi perfil",
+    "title": "Mi Perfil",
     "language": "Idioma",
     "history": "Historial",
     "favorites": "Favoritos",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar Sesión",
+    "deleteAccount": "Eliminar mi cuenta"
   },
   "accommodation": {
     "perNight": "noche",
@@ -111,19 +123,19 @@
     "bathrooms": "baños",
     "amenities": "Lo que ofrece este lugar",
     "host": "Anfitrión",
-    "yearsHosting": "años anfitrionando",
+    "yearsHosting": "años como anfitrión",
     "reviews": "Reseñas",
-    "location": "A dónde irás",
+    "location": "Ubicación",
     "howToGet": "¿Cómo llegar?",
     "reserve": "Reservar",
-    "contactHost": "Comunícate con el anfitrión",
-    "topAccommodations": "En el 10% de mejores alojamientos",
-    "topDescription": "Este alojamiento sobresale según las valoraciones",
+    "contactHost": "Contactar al anfitrión",
+    "topAccommodations": "En el 10% superior de alojamientos",
+    "topDescription": "Este alojamiento destaca según las calificaciones",
     "features": {
       "autonomousArrival": "Llegada autónoma",
-      "autonomousDescription": "Realiza una llegada fácilmente mediante la cerradura con teclado",
+      "autonomousDescription": "Regístrate tú mismo con el teclado",
       "peaceAndQuiet": "Paz y tranquilidad",
-      "peaceDescription": "Este alojamiento se encuentra en una zona tranquila"
+      "peaceDescription": "Este alojamiento está ubicado en una zona tranquila"
     }
   },
   "route": {
@@ -153,8 +165,8 @@
     "next": "Siguiente",
     "previous": "Anterior",
     "done": "Hecho",
-    "skip": "Omitir",
-    "viewAll": "Ver todos",
+    "skip": "Saltar",
+    "viewAll": "Ver todo",
     "showMore": "Mostrar más",
     "showLess": "Mostrar menos",
     "search": "Buscar",
@@ -167,8 +179,8 @@
   "navigation": {
     "home": "Inicio",
     "explore": "Explorar",
-    "favorites": "Guardado",
+    "favorites": "Guardados",
     "bookings": "Reservas",
-    "profile": "Mi perfil"
+    "profile": "Mi Perfil"
   }
 }

@@ -21,14 +21,13 @@ export const LanguageToggle: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
     backgroundColor: '#374151',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 32, // Altura similar al botón de cerrar sesión
   },
   text: {
     color: '#FFFFFF',

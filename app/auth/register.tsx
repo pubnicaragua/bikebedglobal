@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,17 +29,17 @@ export default function RegisterScreen() {
 
   const handleSignUp = async () => {
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Error', t('auth.errors.fillAllFields'));
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert('Error', t('auth.errors.passwordsNotMatch'));
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Alert.alert('Error', t('auth.errors.passwordLength'));
       return;
     }
 
@@ -48,10 +50,14 @@ export default function RegisterScreen() {
     if (error) {
       Alert.alert('Error', error.message);
     } else {
-      Alert.alert('Success', 'Account created successfully', [
+      Alert.alert('Success', t('auth.register.success'), [
         { text: 'OK', onPress: () => router.replace('/(tabs)') },
       ]);
     }
+  };
+
+  const handleSocialLogin = (provider: string) => {
+    Alert.alert('Información', `Opción de ${provider} seleccionada`);
   };
 
   return (
@@ -110,6 +116,41 @@ export default function RegisterScreen() {
             style={styles.signUpButton}
           />
 
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>{t('auth.or')}</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Botones de redes sociales */}
+          <View style={styles.socialButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.socialButton, styles.googleButton]}
+              onPress={() => handleSocialLogin('Google')}
+            >
+              <Image
+                source={require('assets/images/icons8-logo-de-google-48.png')}
+                style={styles.socialIcon}
+              />
+              <Text style={styles.socialButtonText}>
+                {t('auth.social.google')}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.socialButton, styles.facebookButton]}
+              onPress={() => handleSocialLogin('Facebook')}
+            >
+              <Image
+                source={require('assets/images/icons8-facebook-nuevo-48.png')}
+                style={styles.socialIcon}
+              />
+              <Text style={styles.socialButtonText}>
+                {t('auth.social.facebook')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.footer}>
             <Text style={styles.footerText}>{t('auth.register.hasAccount')}</Text>
             <TouchableOpacity onPress={() => router.back()}>
@@ -147,6 +188,50 @@ const styles = StyleSheet.create({
   signUpButton: {
     marginTop: 8,
     marginBottom: 24,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#374151',
+  },
+  dividerText: {
+    color: '#9CA3AF',
+    paddingHorizontal: 10,
+    fontSize: 14,
+  },
+  socialButtonsContainer: {
+    marginBottom: 24,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  googleButton: {
+    backgroundColor: '#DB4437',
+  },
+  facebookButton: {
+    backgroundColor: '#3B5998',
+  },
+  socialIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+    resizeMode: 'contain',
+  },
+  socialButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   footer: {
     alignItems: 'center',

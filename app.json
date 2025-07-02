@@ -22,7 +22,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#111827"
-      }
+      },
+      "package": "com.dxgabalt.bikebedglobal"
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
@@ -33,6 +34,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "2c4bbaa4-5afc-4b6e-8a9d-6f29f3d16d42"
+      }
     }
   }
 }

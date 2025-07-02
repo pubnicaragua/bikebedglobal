@@ -5,10 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Home, DollarSign, Star, MessageCircle, Calendar, Bike } from 'lucide-react-native';
+import { Home, DollarSign, Star, MessageCircle, Calendar, Bike, LogOut } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
@@ -31,7 +32,7 @@ export default function HostDashboardScreen() {
     unreadMessages: 0,
   });
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { t } = useI18n();
 
   useEffect(() => {
@@ -40,18 +41,34 @@ export default function HostDashboardScreen() {
     }
   }, [user]);
 
+  const handleSignOut = () => {
+    Alert.alert(
+      t('profile.signOut'),
+      '¿Estás seguro de que quieres cerrar sesión?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: t('profile.signOut'),
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/auth');
+          },
+        },
+      ]
+    );
+  };
+
   const fetchHostStats = async () => {
     if (!user) return;
 
     try {
-      // Fetch accommodations count
       const { count: accommodationsCount } = await supabase
         .from('accommodations')
         .select('*', { count: 'exact', head: true })
         .eq('host_id', user.id)
         .eq('is_active', true);
 
-      // Fetch bookings and revenue
       const { data: bookings } = await supabase
         .from('bookings')
         .select('total_price, status, accommodations!inner(host_id)')
@@ -61,7 +78,6 @@ export default function HostDashboardScreen() {
         return booking.status === 'confirmed' ? sum + booking.total_price : sum;
       }, 0) || 0;
 
-      // Fetch average rating
       const { data: reviews } = await supabase
         .from('accommodation_reviews')
         .select('rating, accommodations!inner(host_id)')
@@ -71,7 +87,6 @@ export default function HostDashboardScreen() {
         ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
         : 0;
 
-      // Fetch unread messages
       const { count: unreadCount } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
@@ -123,15 +138,23 @@ export default function HostDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LanguageToggle />
-      
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
+      <View style={styles.headerContainer}>
+        <View style={styles.headerTextContainer}>
           <Text style={styles.title}>Panel de Anfitrión</Text>
           <Text style={styles.subtitle}>Gestiona tus alojamientos y reservas</Text>
         </View>
-
-        {/* Stats Grid */}
+        <View style={styles.headerButtonsContainer}>
+          <LanguageToggle />
+          <TouchableOpacity 
+            onPress={handleSignOut} 
+            style={styles.signOutButton}
+          >
+            <LogOut size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.statsGrid}>
           <StatCard
             icon={Home}
@@ -139,7 +162,6 @@ export default function HostDashboardScreen() {
             value={stats.totalAccommodations}
             subtitle="activos"
           />
-          
           <StatCard
             icon={Calendar}
             title="Reservas"
@@ -147,7 +169,6 @@ export default function HostDashboardScreen() {
             subtitle="totales"
             color="#F59E0B"
           />
-          
           <StatCard
             icon={DollarSign}
             title="Ingresos"
@@ -155,7 +176,6 @@ export default function HostDashboardScreen() {
             subtitle="confirmados"
             color="#10B981"
           />
-          
           <StatCard
             icon={Star}
             title="Calificación"
@@ -165,10 +185,8 @@ export default function HostDashboardScreen() {
           />
         </View>
 
-        {/* Quick Actions */}
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
-          
           <TouchableOpacity 
             style={styles.actionCard}
             onPress={() => router.push('/(host)/accommodations')}
@@ -226,20 +244,16 @@ export default function HostDashboardScreen() {
           )}
         </View>
 
-        {/* Recent Activity */}
         <View style={styles.recentActivity}>
           <Text style={styles.sectionTitle}>Actividad Reciente</Text>
-          
           <View style={styles.activityCard}>
             <Text style={styles.activityTitle}>Nueva reserva recibida</Text>
             <Text style={styles.activityTime}>Hace 2 horas</Text>
           </View>
-          
           <View style={styles.activityCard}>
             <Text style={styles.activityTitle}>Reseña de 5 estrellas</Text>
             <Text style={styles.activityTime}>Ayer</Text>
           </View>
-          
           <View style={styles.activityCard}>
             <Text style={styles.activityTitle}>Pago procesado</Text>
             <Text style={styles.activityTime}>Hace 3 días</Text>
@@ -255,9 +269,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111827',
   },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    paddingBottom: 16,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  signOutButton: {
+    padding: 4,
+  },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -268,38 +300,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
   },
-  header: {
-    marginBottom: 24,
-  },
   title: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
     color: '#9CA3AF',
-    fontSize: 16,
+    fontSize: 14,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    marginBottom: 24,
+    gap: 12,
   },
   statCard: {
     backgroundColor: '#1F2937',
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     width: '48%',
-    marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
   },
   statIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -314,7 +343,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   statSubtitle: {
@@ -322,17 +351,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   quickActions: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   sectionTitle: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
   },
   actionCard: {
     backgroundColor: '#1F2937',
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
@@ -358,14 +387,14 @@ const styles = StyleSheet.create({
   },
   actionSubtitle: {
     color: '#9CA3AF',
-    fontSize: 14,
+    fontSize: 12,
   },
   badge: {
     backgroundColor: '#EF4444',
     borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 24,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
     alignItems: 'center',
   },
   badgeText: {
@@ -387,10 +416,10 @@ const styles = StyleSheet.create({
   },
   activityTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
   },
   activityTime: {
     color: '#9CA3AF',
-    fontSize: 14,
+    fontSize: 12,
   },
 });
