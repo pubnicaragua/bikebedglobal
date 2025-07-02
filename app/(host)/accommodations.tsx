@@ -14,16 +14,29 @@ import { ArrowLeft, Plus, Home, Edit, Eye, MoreVertical } from 'lucide-react-nat
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
+import CreateAccommodationModal from '../../src/components/ui/CreateAlojamientoModal';
+import EditAlojamientoModal from '../../src/components/ui/EditAlojamientoModal';
 
 interface Accommodation {
   id: string;
+  host_id: string;
   name: string;
   description: string;
   location: string;
+  address: string;
   price_per_night: number;
   capacity: number;
+  bedrooms: number;
+  bathrooms: number;
+  has_bike_storage: boolean;
+  has_bike_rental: boolean;
+  has_bike_tools: boolean;
+  has_laundry: boolean;
+  has_wifi: boolean;
+  has_kitchen: boolean;
+  has_parking: boolean;
   is_active: boolean;
-  accommodation_images: Array<{
+  accommodation_images?: Array<{
     image_url: string;
     is_primary: boolean;
   }>;
@@ -36,6 +49,9 @@ interface Accommodation {
 export default function AccommodationsManagementScreen() {
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedAccommodation, setSelectedAccommodation] = useState<Accommodation | null>(null);
   const { user } = useAuth();
   const { t } = useI18n();
 
@@ -47,7 +63,6 @@ export default function AccommodationsManagementScreen() {
 
   const fetchAccommodations = async () => {
     if (!user) return;
-
     try {
       const { data, error } = await supabase
         .from('accommodations')
@@ -69,7 +84,22 @@ export default function AccommodationsManagementScreen() {
     }
   };
 
-  const toggleAccommodationStatus = async (accommodationId: string, currentStatus: boolean) => {
+  const handleCreateAccommodation = (newAccommodation: Accommodation) => {
+    setAccommodations([newAccommodation, ...accommodations]);
+  };
+
+  const handleUpdateAccommodation = (updatedAccommodation: Accommodation) => {
+    setAccommodations(prev =>
+      prev.map(acc => 
+        acc.id === updatedAccommodation.id ? updatedAccommodation : acc
+      )
+    );
+  };
+
+  const toggleAccommodationStatus = async (
+    accommodationId: string,
+    currentStatus: boolean
+  ) => {
     try {
       const { error } = await supabase
         .from('accommodations')
@@ -77,51 +107,64 @@ export default function AccommodationsManagementScreen() {
         .eq('id', accommodationId);
 
       if (error) throw error;
-      
-      setAccommodations(prev => prev.map(acc => 
-        acc.id === accommodationId ? { ...acc, is_active: !currentStatus } : acc
-      ));
-      
-      Alert.alert('Éxito', `Alojamiento ${!currentStatus ? 'activado' : 'desactivado'} correctamente`);
+
+      setAccommodations(prev =>
+        prev.map(acc =>
+          acc.id === accommodationId ? { ...acc, is_active: !currentStatus } : acc
+        )
+      );
+
+      Alert.alert(
+        'Éxito',
+        `Alojamiento ${!currentStatus ? 'activado' : 'desactivado'} correctamente`
+      );
     } catch (error) {
       console.error('Error updating accommodation status:', error);
       Alert.alert('Error', 'No se pudo actualizar el estado del alojamiento');
     }
   };
 
+  const handleOpenEditModal = (accommodation: Accommodation) => {
+    setSelectedAccommodation(accommodation);
+    setEditModalVisible(true);
+  };
+
   const AccommodationCard = ({ accommodation }: { accommodation: Accommodation }) => {
-    const primaryImage = accommodation.accommodation_images.find(img => img.is_primary) || 
-                        accommodation.accommodation_images[0];
+    const images = accommodation.accommodation_images ?? [];
+    const primaryImage = images.find(img => img.is_primary) || images[0];
     const activeBookings = accommodation.bookings.filter(b => b.status === 'confirmed').length;
 
     return (
       <View style={styles.accommodationCard}>
         <Image
           source={{
-            uri: primaryImage?.image_url || 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg',
+            uri:
+              primaryImage?.image_url ||
+              'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg',
           }}
           style={styles.accommodationImage}
         />
-        
         <View style={styles.accommodationContent}>
           <View style={styles.accommodationHeader}>
             <Text style={styles.accommodationName} numberOfLines={1}>
               {accommodation.name}
             </Text>
-            <View style={[
-              styles.statusBadge,
-              { backgroundColor: accommodation.is_active ? '#4ADE80' : '#EF4444' }
-            ]}>
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor: accommodation.is_active ? '#4ADE80' : '#EF4444',
+                },
+              ]}
+            >
               <Text style={styles.statusText}>
                 {accommodation.is_active ? 'Activo' : 'Inactivo'}
               </Text>
             </View>
           </View>
-          
           <Text style={styles.accommodationLocation} numberOfLines={1}>
             {accommodation.location}
           </Text>
-          
           <View style={styles.accommodationStats}>
             <Text style={styles.statText}>
               ${accommodation.price_per_night}/noche
@@ -133,7 +176,6 @@ export default function AccommodationsManagementScreen() {
               {activeBookings} reservas activas
             </Text>
           </View>
-          
           <View style={styles.accommodationActions}>
             <TouchableOpacity
               style={styles.actionButton}
@@ -142,29 +184,30 @@ export default function AccommodationsManagementScreen() {
               <Eye size={16} color="#4ADE80" />
               <Text style={styles.actionText}>Ver</Text>
             </TouchableOpacity>
-            
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => {
-                // Navigate to edit screen (would need to be implemented)
-                Alert.alert('Editar', 'Función de edición próximamente');
-              }}
+              onPress={() => handleOpenEditModal(accommodation)}
             >
               <Edit size={16} color="#F59E0B" />
               <Text style={styles.actionText}>Editar</Text>
             </TouchableOpacity>
-            
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => {
                 Alert.alert(
                   accommodation.is_active ? 'Desactivar' : 'Activar',
-                  `¿Estás seguro de que quieres ${accommodation.is_active ? 'desactivar' : 'activar'} este alojamiento?`,
+                  `¿Estás seguro de que quieres ${
+                    accommodation.is_active ? 'desactivar' : 'activar'
+                  } este alojamiento?`,
                   [
                     { text: 'Cancelar', style: 'cancel' },
                     {
                       text: accommodation.is_active ? 'Desactivar' : 'Activar',
-                      onPress: () => toggleAccommodationStatus(accommodation.id, accommodation.is_active),
+                      onPress: () =>
+                        toggleAccommodationStatus(
+                          accommodation.id,
+                          accommodation.is_active
+                        ),
                     },
                   ]
                 );
@@ -197,14 +240,11 @@ export default function AccommodationsManagementScreen() {
         <Text style={styles.title}>Mis Alojamientos</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => {
-            Alert.alert('Agregar', 'Función de agregar alojamiento próximamente');
-          }}
+          onPress={() => setShowModal(true)}
         >
           <Plus size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
@@ -227,7 +267,6 @@ export default function AccommodationsManagementScreen() {
             <Text style={styles.statLabel}>Inactivos</Text>
           </View>
         </View>
-
         <View style={styles.accommodationsList}>
           {accommodations.length > 0 ? (
             accommodations.map((accommodation) => (
@@ -242,9 +281,7 @@ export default function AccommodationsManagementScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.emptyButton}
-                onPress={() => {
-                  Alert.alert('Agregar', 'Función de agregar alojamiento próximamente');
-                }}
+                onPress={() => setShowModal(true)}
               >
                 <Text style={styles.emptyButtonText}>Agregar Alojamiento</Text>
               </TouchableOpacity>
@@ -252,6 +289,22 @@ export default function AccommodationsManagementScreen() {
           )}
         </View>
       </ScrollView>
+
+      <CreateAccommodationModal
+        visible={showModal}
+        onClose={() => setShowModal(false)}
+        onAccommodationCreated={handleCreateAccommodation}
+      />
+
+      <EditAlojamientoModal
+        visible={editModalVisible}
+        onClose={() => setEditModalVisible(false)}
+        alojamiento={selectedAccommodation}
+        onSaveSuccess={() => {
+          setEditModalVisible(false);
+          fetchAccommodations();
+        }}
+      />
     </SafeAreaView>
   );
 }
