@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   Shield,
   Headphones,
+  BellRing,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';

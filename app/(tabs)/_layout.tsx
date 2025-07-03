@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Search, Heart, Calendar, User } from 'lucide-react-native';
+import { Home, Search, Heart, Calendar, User, BellRing } from 'lucide-react-native';
 import { useI18n } from '../../src/hooks/useI18n';
 
 export default function TabLayout() {
@@ -53,6 +53,13 @@ export default function TabLayout() {
           tabBarIcon: ({ size, color }) => (
             <Calendar size={size} color={color} />
           ),
+        }}
+      />
+       <Tabs.Screen
+        name="notification"
+        options={{
+          title: t('navigation.notifications'),
+          tabBarIcon: ({ size, color }) => <BellRing size={size} color={color} />,
         }}
       />
       <Tabs.Screen

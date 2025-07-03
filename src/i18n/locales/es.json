@@ -48,6 +48,7 @@
     "noAccommodations": "No se encontraron alojamientos",
     "noRoutes": "No se encontraron rutas",
     "noServices": "No se encontraron servicios",
+    "noBikesAvailable": "No hay bicicletas disponibles",
     "filters": {
       "all": "Todos",
       "nearby": "Cercanos",
@@ -60,6 +61,7 @@
       "recommended": "Recomendados para ti",
       "routes": "Rutas recomendadas",
       "services": "Servicios recomendados",
+      "bikeRentals": "Alquiler de Bicicletas",
       "seeAll": "Ver todos"
     }
   },
@@ -138,19 +140,65 @@
     },
     "hostInfo": "Anfitrión de mi reserva",
     "location": "Ubicación del alojamiento",
-    "months": {
-      "january": "Enero",
-      "february": "Febrero",
-      "march": "Marzo",
-      "april": "Abril",
-      "may": "Mayo",
-      "june": "Junio",
-      "july": "Julio",
-      "august": "Agosto",
-      "september": "Septiembre",
-      "october": "Octubre",
-      "november": "Noviembre",
-      "december": "Diciembre"
+    "paymentTitle": "Método de Pago",
+    "securePayment": "Pago seguro con cifrado de 256 bits",
+    "bookingSummary": "Resumen de la Reserva",
+    "unknownLocation": "Ubicación desconocida",
+    "paymentDetails": "Detalles de Pago",
+    "cardNumber": "Número de Tarjeta",
+    "expiryDate": "Fecha de Expiración",
+    "cardholderName": "Nombre en la Tarjeta",
+    "otherMethods": "Otros Métodos de Pago",
+    "paypal": "Pagar con PayPal",
+    "bankTransfer": "Transferencia Bancaria",
+    "paymentSummary": "Resumen de Pago",
+    "subtotal": "Subtotal",
+    "taxes": "Impuestos",
+    "serviceFee": "Tarifa de Servicio",
+    "secureTransaction": "Transacción segura con cifrado SSL",
+    "paymentSuccess": "¡Pago realizado con éxito!",
+    "errorPayment": "Error al procesar el pago",
+    "paymentMethod": "Método de Pago",
+    "creditCard": "Tarjeta de Crédito",
+    "cryptocurrency": "Criptomoneda",
+    "cardDetails": "Detalles de Tarjeta",
+    "cryptoPayment": "Pago con Criptomoneda",
+    "cryptoInstructions": "Envía el monto exacto a la dirección de billetera abajo. El pago se confirmará después de 3 confirmaciones en la red.",
+    "bankDetails": "Detalles de Transferencia Bancaria",
+    "bankName": "Nombre del Banco",
+    "accountNumber": "Número de Cuenta",
+    "swiftCode": "Código SWIFT",
+    "reference": "Referencia",
+    "bankInstructions": "Por favor incluye el número de referencia en tu transferencia. El procesamiento puede tomar 1-3 días hábiles.",
+    "generateAddress": "Generar Dirección de Pago",
+    "confirmTransfer": "Confirmar Transferencia",
+    "sendCryptoTo": "Envía criptomoneda a esta dirección:",
+    "amountToSend": "Monto a enviar",
+    "iHaveSent": "He enviado el pago",
+    "addressCopied": "Dirección de billetera copiada al portapapeles",
+    "bookingConfirmed": "Tu reserva ha sido confirmada. Recibirás un correo de confirmación en breve."
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "empty": "No tienes notificaciones",
+    "types": {
+      "message": "Nuevo mensaje",
+      "reminder": "Recordatorio",
+      "system": "Sistema",
+      "booking": "Actualización de reserva"
+    },
+    "markAllAsRead": "Marcar todas como leídas",
+    "new": "Nuevo",
+    "time": {
+      "now": "Ahora mismo",
+      "minutes": "min atrás",
+      "hours": "h atrás",
+      "days": "d atrás",
+      "weeks": "sem atrás"
+    },
+    "actions": {
+      "view": "Ver",
+      "dismiss": "Descartar"
     }
   },
   "profile": {
@@ -158,6 +206,7 @@
     "language": "Idioma",
     "history": "Historial",
     "favorites": "Favoritos",
+    "notifications": "Notificaciones",
     "signOut": "Cerrar Sesión",
     "deleteAccount": "Eliminar mi cuenta",
     "checkSecurity": "Comprobar seguridad",
@@ -239,6 +288,7 @@
     "explore": "Explorar",
     "favorites": "Guardados",
     "bookings": "Reservas",
+    "notifications": "Notificaciones",
     "profile": "Mi Perfil"
   }
 }

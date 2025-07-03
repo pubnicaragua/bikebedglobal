@@ -13,6 +13,8 @@ import { router } from 'expo-router';
 import { useI18n } from '../../src/hooks/useI18n';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
+import EditBookingModal from '../../src/components/ui/EditBookingModal';
+import CancelBookingModal from '../../src/components/ui/CancelBookingModal';
 
 interface Booking {
   id: string;
@@ -38,11 +40,11 @@ export default function BookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  const [cancelingBooking, setCancelingBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
-    if (user) {
-      fetchBookings();
-    }
+    if (user) fetchBookings();
   }, [user]);
 
   const fetchBookings = async () => {
@@ -79,7 +81,7 @@ export default function BookingsScreen() {
       const processedBookings = data?.map((booking: any) => ({
         ...booking,
         accommodation: {
-          name: booking.accommodations?.name || 'Alojamiento desconocido',
+          name: booking.accommodations?.name || t('bookings.unknownAccommodation'),
           image_url: booking.accommodations?.accommodation_images[0]?.image_url || 'https://via.placeholder.com/150'
         }
       })) || [];
@@ -92,6 +94,23 @@ export default function BookingsScreen() {
       setLoading(false);
     }
   };
+
+  const handleBookingUpdated = () => {
+    fetchBookings();
+    setEditingBooking(null);
+  };
+
+  const handleBookingCanceled = () => {
+    fetchBookings();
+    setCancelingBooking(null);
+  };
+
+const handlePayBooking = (bookingId: string) => {
+  router.push({
+    pathname: '/Payment/payment',
+    params: { id: bookingId }
+  });
+};
 
   const formatDate = (dateString: string) => {
     const months = [
@@ -111,39 +130,11 @@ export default function BookingsScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed':
-        return '#4ADE80';
-      case 'pending':
-        return '#F59E0B';
-      case 'cancelled':
-        return '#EF4444';
-      default:
-        return '#9CA3AF';
+      case 'confirmed': return '#4ADE80';
+      case 'pending': return '#F59E0B';
+      case 'cancelled': return '#EF4444';
+      default: return '#9CA3AF';
     }
-  };
-
-  const getStatusText = (status: string) => {
-    return t(`bookings.status.${status}`);
-  };
-
-  const getPaymentStatusText = (status: string) => {
-    return t(`bookings.paymentStatus.${status.toLowerCase()}`) || status;
-  };
-
-  // Funciones placeholder para los botones (implementar mañana)
-  const handleEditBooking = (bookingId: string) => {
-    console.log('Editar reserva:', bookingId);
-    // router.push(`/booking/edit/${bookingId}`);
-  };
-
-  const handleCancelBooking = (bookingId: string) => {
-    console.log('Cancelar reserva:', bookingId);
-    // Mostrar confirmación antes de cancelar
-  };
-
-  const handlePayBooking = (bookingId: string) => {
-    console.log('Pagar reserva:', bookingId);
-    // router.push(`/payment/${bookingId}`);
   };
 
   const renderBookingItem = ({ item }: { item: Booking }) => {
@@ -159,19 +150,14 @@ export default function BookingsScreen() {
           />
           <View style={styles.bookingContent}>
             <View style={styles.bookingHeader}>
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: getStatusColor(item.status) },
-                ]}
-              >
-                <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+                <Text style={styles.statusText}>{t(`bookings.status.${item.status}`)}</Text>
               </View>
               <View style={styles.paymentStatus}>
                 <Text style={[styles.paymentStatusText, { 
                   color: item.payment_status === 'paid' ? '#4ADE80' : '#F59E0B'
                 }]}>
-                  {getPaymentStatusText(item.payment_status)}
+                  {t(`bookings.paymentStatus.${item.payment_status.toLowerCase()}`)}
                 </Text>
               </View>
             </View>
@@ -187,26 +173,20 @@ export default function BookingsScreen() {
                 {t('bookings.total')}: ${item.total_price.toFixed(2)}
               </Text>
             </View>
-            {item.special_requests && (
-              <Text style={styles.specialRequests} numberOfLines={1}>
-                {t('bookings.requests')}: {item.special_requests}
-              </Text>
-            )}
           </View>
         </TouchableOpacity>
 
-        {/* Nuevos botones de acciones */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity 
             style={[styles.actionButton, styles.editButton]}
-            onPress={() => handleEditBooking(item.id)}
+            onPress={() => setEditingBooking(item)}
           >
             <Text style={styles.actionButtonText}>{t('common.edit')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => handleCancelBooking(item.id)}
+            onPress={() => setCancelingBooking(item)}
           >
             <Text style={styles.actionButtonText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
@@ -272,6 +252,21 @@ export default function BookingsScreen() {
           <Text style={styles.emptyText}>{t('bookings.empty')}</Text>
         </View>
       )}
+
+      {/* Modales */}
+      <EditBookingModal
+        visible={!!editingBooking}
+        booking={editingBooking}
+        onClose={() => setEditingBooking(null)}
+        onSuccess={handleBookingUpdated}
+      />
+
+      <CancelBookingModal
+        visible={!!cancelingBooking}
+        booking={cancelingBooking}
+        onClose={() => setCancelingBooking(null)}
+        onSuccess={handleBookingCanceled}
+      />
     </SafeAreaView>
   );
 }
@@ -352,12 +347,6 @@ const styles = StyleSheet.create({
     color: '#D1D5DB',
     fontSize: 14,
   },
-  specialRequests: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    fontStyle: 'italic',
-  },
-  // Nuevos estilos para los botones de acción
   actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -378,13 +367,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   editButton: {
-    backgroundColor: '#3B82F6', // Azul
+    backgroundColor: '#3B82F6',
   },
   cancelButton: {
-    backgroundColor: '#EF4444', // Rojo
+    backgroundColor: '#EF4444',
   },
   payButton: {
-    backgroundColor: '#10B981', // Verde
+    backgroundColor: '#10B981',
   },
   loadingContainer: {
     flex: 1,

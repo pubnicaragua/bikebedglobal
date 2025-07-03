@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Href, router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Star, MapPin, Bike as BikeIcon } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -57,7 +57,17 @@ const BikeDetailScreen = () => {
   }, [id]);
 
   const handleRent = () => {
-    router.push(`/`);
+    if (bike) {
+      router.push({
+        pathname: '/booking/rentBike',
+        params: {
+          bikeId: bike.id,
+          bikeType: bike.bike_type,
+          pricePerDay: bike.price_per_day.toString(),
+          bikeImage: bike.image_url,
+        }
+      });
+    }
   };
 
   const openMaps = () => {

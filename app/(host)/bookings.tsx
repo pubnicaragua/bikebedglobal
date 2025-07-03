@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Calendar, CheckCircle, Clock, X, MessageCircle } from 'lucide-react-native';
+import { ArrowLeft, Calendar, CheckCircle, Clock, X, MessageCircle, CreditCard } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
@@ -22,6 +22,7 @@ interface Booking {
   guests: number;
   total_price: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  payment_status: 'pending' | 'paid' | 'refunded' | 'failed';
   special_requests: string | null;
   created_at: string;
   profiles: {
@@ -47,6 +48,18 @@ export default function HostBookingsScreen() {
   useEffect(() => {
     if (user) {
       fetchBookings();
+      const subscription = supabase
+        .channel('bookings_changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'bookings' },
+          () => fetchBookings()
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
     }
   }, [user]);
 
@@ -57,15 +70,33 @@ export default function HostBookingsScreen() {
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          *,
-          profiles(id, first_name, last_name, email, avatar_url),
-          accommodations!inner(id, name, location, host_id)
+          id,
+          check_in_date,
+          check_out_date,
+          guests,
+          total_price,
+          status,
+          payment_status,
+          special_requests,
+          created_at,
+          profiles (
+            id,
+            first_name,
+            last_name,
+            email,
+            avatar_url
+          ),
+          accommodations (
+            id,
+            name,
+            location
+          )
         `)
         .eq('accommodations.host_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setBookings(data || []);
+      setBookings(data as unknown as Booking[]);
     } catch (error) {
       console.error('Error fetching bookings:', error);
       Alert.alert('Error', 'No se pudieron cargar las reservas');
@@ -78,13 +109,21 @@ export default function HostBookingsScreen() {
     try {
       const { error } = await supabase
         .from('bookings')
-        .update({ status: newStatus })
+        .update({ 
+          status: newStatus,
+          // Si cancela, también marcamos el pago como reembolsado si estaba pagado
+          payment_status: newStatus === 'cancelled' ? 'refunded' : undefined
+        })
         .eq('id', bookingId);
 
       if (error) throw error;
       
       setBookings(prev => prev.map(booking => 
-        booking.id === bookingId ? { ...booking, status: newStatus } : booking
+        booking.id === bookingId ? { 
+          ...booking, 
+          status: newStatus,
+          payment_status: newStatus === 'cancelled' ? 'refunded' : booking.payment_status
+        } : booking
       ));
       
       Alert.alert('Éxito', `Reserva ${newStatus === 'confirmed' ? 'confirmada' : 'cancelada'} correctamente`);
@@ -109,6 +148,21 @@ export default function HostBookingsScreen() {
     }
   };
 
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return '#10B981';
+      case 'pending':
+        return '#F59E0B';
+      case 'refunded':
+        return '#8B5CF6';
+      case 'failed':
+        return '#EF4444';
+      default:
+        return '#9CA3AF';
+    }
+  };
+
   const getStatusText = (status: string) => {
     switch (status) {
       case 'confirmed':
@@ -119,6 +173,21 @@ export default function HostBookingsScreen() {
         return 'Cancelada';
       case 'completed':
         return 'Completada';
+      default:
+        return status;
+    }
+  };
+
+  const getPaymentStatusText = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'Pagado';
+      case 'pending':
+        return 'Pago pendiente';
+      case 'refunded':
+        return 'Reembolsado';
+      case 'failed':
+        return 'Pago fallido';
       default:
         return status;
     }
@@ -150,8 +219,14 @@ export default function HostBookingsScreen() {
             <Text style={styles.accommodationName}>{booking.accommodations.name}</Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) }]}>
-          <Text style={styles.statusText}>{getStatusText(booking.status)}</Text>
+        <View style={styles.statusContainer}>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) }]}>
+            <Text style={styles.statusText}>{getStatusText(booking.status)}</Text>
+          </View>
+          <View style={[styles.paymentBadge, { backgroundColor: getPaymentStatusColor(booking.payment_status) }]}>
+            <CreditCard size={12} color="#FFFFFF" />
+            <Text style={styles.paymentText}>{getPaymentStatusText(booking.payment_status)}</Text>
+          </View>
         </View>
       </View>
 
@@ -180,8 +255,7 @@ export default function HostBookingsScreen() {
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => {
-            // Navigate to chat with guest
-            router.push(`/chat?hostId=${booking.profiles.id}`);
+            router.push(`/chat?userId=${booking.profiles.id}`);
           }}
         >
           <MessageCircle size={16} color="#4ADE80" />
@@ -256,11 +330,11 @@ export default function HostBookingsScreen() {
             <Text style={styles.statLabel}>Confirmadas</Text>
           </View>
           <View style={styles.statCard}>
-            <Calendar size={24} color="#8B5CF6" />
+            <CreditCard size={24} color="#10B981" />
             <Text style={styles.statNumber}>
-              {bookings.filter(b => b.status === 'completed').length}
+              {bookings.filter(b => b.payment_status === 'paid').length}
             </Text>
-            <Text style={styles.statLabel}>Completadas</Text>
+            <Text style={styles.statLabel}>Pagadas</Text>
           </View>
         </View>
 
@@ -353,7 +427,7 @@ const styles = StyleSheet.create({
   bookingHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
   },
   guestInfo: {
@@ -380,7 +454,18 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 14,
   },
+  statusContainer: {
+    alignItems: 'flex-end',
+  },
   statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  paymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -389,6 +474,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
+  },
+  paymentText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   bookingDetails: {
     marginBottom: 16,

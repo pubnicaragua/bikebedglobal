@@ -45,6 +45,10 @@
   "home": {
     "search": "Search",
     "chooseLocation": "Choose location",
+    "noAccommodations": "No accommodations found",
+    "noRoutes": "No routes found",
+    "noServices": "No services found",
+    "noBikesAvailable": "No bikes available",
     "filters": {
       "all": "All",
       "nearby": "Nearby",
@@ -57,6 +61,7 @@
       "recommended": "Recommended for you",
       "routes": "Recommended routes",
       "services": "Recommended services",
+      "bikeRentals": "Bike Rentals",
       "seeAll": "See all"
     }
   },
@@ -135,19 +140,65 @@
     },
     "hostInfo": "Host of my reservation",
     "location": "Accommodation location",
-    "months": {
-      "january": "January",
-      "february": "February",
-      "march": "March",
-      "april": "April",
-      "may": "May",
-      "june": "June",
-      "july": "July",
-      "august": "August",
-      "september": "September",
-      "october": "October",
-      "november": "November",
-      "december": "December"
+    "paymentTitle": "Payment Method",
+    "securePayment": "Secure 256-bit encrypted payment",
+    "bookingSummary": "Booking Summary",
+    "unknownLocation": "Unknown location",
+    "paymentDetails": "Payment Details",
+    "cardNumber": "Card Number",
+    "expiryDate": "Expiry Date",
+    "cardholderName": "Cardholder Name",
+    "otherMethods": "Other Payment Methods",
+    "paypal": "Pay with PayPal",
+    "bankTransfer": "Bank Transfer",
+    "paymentSummary": "Payment Summary",
+    "subtotal": "Subtotal",
+    "taxes": "Taxes",
+    "serviceFee": "Service Fee",
+    "secureTransaction": "Secure SSL encrypted transaction",
+    "paymentSuccess": "Payment successful!",
+    "errorPayment": "Error processing payment",
+    "paymentMethod": "Payment Method",
+    "creditCard": "Credit Card",
+    "cryptocurrency": "Cryptocurrency",
+    "cardDetails": "Card Details",
+    "cryptoPayment": "Cryptocurrency Payment",
+    "cryptoInstructions": "Send the exact amount to the wallet address below. Payment will be confirmed after 3 network confirmations.",
+    "bankDetails": "Bank Transfer Details",
+    "bankName": "Bank Name",
+    "accountNumber": "Account Number",
+    "swiftCode": "SWIFT Code",
+    "reference": "Reference",
+    "bankInstructions": "Please include the reference number in your transfer. Processing may take 1-3 business days.",
+    "generateAddress": "Generate Payment Address",
+    "confirmTransfer": "Confirm Bank Transfer",
+    "sendCryptoTo": "Send cryptocurrency to this address:",
+    "amountToSend": "Amount to send",
+    "iHaveSent": "I've sent the payment",
+    "addressCopied": "Wallet address copied to clipboard",
+    "bookingConfirmed": "Your booking has been confirmed. You'll receive a confirmation email shortly."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "You don't have any notifications",
+    "types": {
+      "message": "New message",
+      "reminder": "Reminder",
+      "system": "System",
+      "booking": "Booking update"
+    },
+    "markAllAsRead": "Mark all as read",
+    "new": "New",
+    "time": {
+      "now": "Just now",
+      "minutes": "min ago",
+      "hours": "h ago",
+      "days": "d ago",
+      "weeks": "w ago"
+    },
+    "actions": {
+      "view": "View",
+      "dismiss": "Dismiss"
     }
   },
   "profile": {
@@ -155,6 +206,7 @@
     "language": "Language",
     "history": "History",
     "favorites": "Favorites",
+    "notifications": "Notifications",
     "signOut": "Sign Out",
     "deleteAccount": "Delete my account",
     "checkSecurity": "Check Security",
@@ -227,13 +279,15 @@
     "map": "Map",
     "list": "List",
     "grid": "Grid",
-    "remove": "Remove"
+    "remove": "Remove",
+    "pay": "Pay"
   },
   "navigation": {
     "home": "Home",
     "explore": "Explore",
     "favorites": "Saved",
     "bookings": "Bookings",
+    "notifications": "Notifications",
     "profile": "My Profile"
   }
 }

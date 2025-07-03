@@ -40,11 +40,63 @@ type Route = {
   isFavorite: boolean;
 };
 
+type Bike = {
+  id: string;
+  name: string;
+  type: string;
+  size: string;
+  price: string;
+  location: string;
+  imageUrl: string;
+  isFavorite: boolean;
+};
+
+type AccommodationData = {
+  id: string;
+  name: string;
+  location: string;
+  price_per_night: number;
+  accommodation_images: Array<{
+    image_url: string;
+    is_primary: boolean;
+  }>;
+  accommodation_reviews: Array<{
+    rating: number;
+  }>;
+};
+
+type RouteData = {
+  id: string;
+  name: string;
+  start_location: string;
+  route_images: Array<{
+    image_url: string;
+    is_primary: boolean;
+  }>;
+  route_reviews: Array<{
+    rating: number;
+  }>;
+};
+
+type BikeData = {
+  id: string;
+  bike_type: string;
+  bike_size: string | null;
+  price_per_day: number;
+  is_available: boolean;
+  accommodation_id: string | null;
+  accommodations: {
+    name: string;
+    location: string;
+  } | null;
+};
+
 export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [bikes, setBikes] = useState<Bike[]>([]);
   const [loading, setLoading] = useState(true);
   const { t } = useI18n();
   const { user } = useAuth();
@@ -94,12 +146,12 @@ export default function HomeScreen() {
 
         const favoriteIds = favoriteAccommodations?.map(fav => fav.accommodation_id) || [];
 
-        const processedAccommodations = accommodationsData?.map(acc => {
-          const primaryImage = acc.accommodation_images?.find((img: any) => img.is_primary) || 
+        const processedAccommodations = (accommodationsData as AccommodationData[])?.map(acc => {
+          const primaryImage = acc.accommodation_images?.find(img => img.is_primary) || 
                              acc.accommodation_images?.[0];
           const reviews = acc.accommodation_reviews || [];
           const avgRating = reviews.length > 0 
-            ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length
+            ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
             : 0;
 
           return {
@@ -146,12 +198,12 @@ export default function HomeScreen() {
 
         const favoriteRouteIds = favoriteRoutes?.map(fav => fav.route_id) || [];
 
-        const processedRoutes = routesData?.map(route => {
-          const primaryImage = route.route_images?.find((img: any) => img.is_primary) || 
+        const processedRoutes = (routesData as RouteData[])?.map(route => {
+          const primaryImage = route.route_images?.find(img => img.is_primary) || 
                              route.route_images?.[0];
           const reviews = route.route_reviews || [];
           const avgRating = reviews.length > 0 
-            ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length
+            ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
             : 0;
 
           return {
@@ -167,6 +219,55 @@ export default function HomeScreen() {
         }) || [];
 
         setRoutes(processedRoutes);
+
+        // Obtener bicicletas para alquiler
+        const { data: bikesData, error: bikesError } = await supabase
+          .from('bike_rentals')
+          .select(`
+            id,
+            bike_type,
+            bike_size,
+            price_per_day,
+            is_available,
+            host_id,
+            accommodation_id,
+            accommodations (
+              name,
+              location
+            )
+          `)
+          .eq('is_available', true)
+          .limit(10);
+
+        if (bikesError) throw bikesError;
+
+        // Obtener bicicletas favoritas del usuario (usaremos la misma tabla de favoritos)
+        const { data: favoriteBikes, error: favoriteBikesError } = await supabase
+          .from('favorite_accommodations') // Podrías crear una tabla específica para bikes después
+          .select('accommodation_id')
+          .eq('user_id', user?.id);
+
+        if (favoriteBikesError) throw favoriteBikesError;
+
+        const favoriteBikeIds = favoriteBikes?.map(fav => fav.accommodation_id) || [];
+
+        const processedBikes = (bikesData as unknown as BikeData[])?.map(bike => {
+          const location = bike.accommodations?.location || 'Ubicación no especificada';
+          const accommodationName = bike.accommodations?.name || 'Alojamiento asociado';
+
+          return {
+            id: bike.id,
+            name: `${bike.bike_type}`,
+            type: bike.bike_type,
+            size: bike.bike_size || 'Talla estándar',
+            price: `$${bike.price_per_day}/día`,
+            location: location,
+            imageUrl: 'https://via.placeholder.com/300', // Imagen genérica de bicicleta
+            isFavorite: favoriteBikeIds.includes(bike.accommodation_id || '')
+          };
+        }) || [];
+
+        setBikes(processedBikes);
 
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -190,6 +291,10 @@ export default function HomeScreen() {
 
   const handleRoutePress = (route: Route) => {
     router.push(`/route/${route.id}`);
+  };
+
+  const handleBikePress = (bike: Bike) => {
+    router.push(`/bike/${bike.id}`);
   };
 
   const toggleFavoriteAccommodation = async (accommodation: Accommodation) => {
@@ -270,6 +375,44 @@ export default function HomeScreen() {
     }
   };
 
+  const toggleFavoriteBike = async (bike: Bike) => {
+    if (!user?.id) return;
+
+    try {
+      // Aquí deberías implementar la lógica para favoritos de bicicletas
+      // Por ahora usaremos la misma tabla de favoritos de alojamientos como ejemplo
+      if (bike.isFavorite) {
+        const { error } = await supabase
+          .from('favorite_accommodations')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('accommodation_id', bike.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('favorite_accommodations')
+          .insert([
+            { 
+              user_id: user.id, 
+              accommodation_id: bike.id 
+            }
+          ]);
+
+        if (error) throw error;
+      }
+
+      setBikes(prev => prev.map(item => 
+        item.id === bike.id 
+          ? { ...item, isFavorite: !item.isFavorite } 
+          : item
+      ));
+
+    } catch (error) {
+      console.error('Error toggling bike favorite:', error);
+    }
+  };
+
   const renderAccommodationCard = ({ item }: { item: Accommodation }) => (
     <Card
       imageUrl={item.imageUrl}
@@ -294,6 +437,21 @@ export default function HomeScreen() {
       reviewCount={item.reviewCount}
       onPress={() => handleRoutePress(item)}
       onFavoritePress={() => toggleFavoriteRoute(item)}
+      isFavorite={item.isFavorite}
+      style={styles.card}
+    />
+  );
+
+  const renderBikeCard = ({ item }: { item: Bike }) => (
+    <Card
+      imageUrl={item.imageUrl}
+      title={item.name}
+      subtitle={`${item.type} - ${item.size}`}
+      price={item.price}
+      rating={0} // No hay rating para bicicletas en el diseño actual
+      reviewCount={0} // No hay reviews para bicicletas en el diseño actual
+      onPress={() => handleBikePress(item)}
+      onFavoritePress={() => toggleFavoriteBike(item)}
       isFavorite={item.isFavorite}
       style={styles.card}
     />
@@ -406,6 +564,29 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalList}
             ListEmptyComponent={() => renderEmptyComponent(t('home.noServices'))}
+          />
+        </View>
+
+        {/* Nuevo contenedor para bicicletas de alquiler */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {t('home.sections.bikeRentals')}
+            </Text>
+            <TouchableOpacity>
+              <Text style={styles.seeAllText}>
+                {t('home.sections.seeAll')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={bikes}
+            renderItem={renderBikeCard}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+            ListEmptyComponent={() => renderEmptyComponent(t('home.noBikesAvailable'))}
           />
         </View>
       </ScrollView>
