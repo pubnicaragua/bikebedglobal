@@ -7,7 +7,11 @@
       "signIn": "Iniciar Sesión",
       "forgotPassword": "¿Olvidaste tu contraseña?",
       "noAccount": "¿No tienes una cuenta aún?",
-      "register": "Regístrate con nosotros"
+      "register": "Regístrate con nosotros",
+      "social": {
+        "google": "Continuar con Google",
+        "facebook": "Continuar con Facebook"
+      }
     },
     "register": {
       "title": "Crear Cuenta",
@@ -41,6 +45,9 @@
   "home": {
     "search": "Buscar",
     "chooseLocation": "Elegir ubicación",
+    "noAccommodations": "No se encontraron alojamientos",
+    "noRoutes": "No se encontraron rutas",
+    "noServices": "No se encontraron servicios",
     "filters": {
       "all": "Todos",
       "nearby": "Cercanos",
@@ -68,45 +75,83 @@
   },
   "favorites": {
     "title": "Guardados",
-    "sections": {
-      "thisMonth": "Guardados este mes",
-      "months": {
-        "january": "Guardados en Enero",
-        "february": "Guardados en Febrero",
-        "march": "Guardados en Marzo",
-        "april": "Guardados en Abril",
-        "may": "Guardados en Mayo",
-        "june": "Guardados en Junio",
-        "july": "Guardados en Julio",
-        "august": "Guardados en Agosto",
-        "september": "Guardados en Septiembre",
-        "october": "Guardados en Octubre",
-        "november": "Guardados en Noviembre",
-        "december": "Guardados en Diciembre"
-      }
+    "saved": "Guardado",
+    "share": "Compartir",
+    "shareMessage": "Mira este alojamiento que encontré en la app!",
+    "removeFavorite": "Quitar de favoritos",
+    "confirmRemoveTitle": "Eliminar favorito",
+    "confirmRemoveMessage": "¿Estás seguro de que quieres quitar este elemento de tus favoritos?",
+    "shareError": "Error al compartir",
+    "removeError": "Error al eliminar favorito",
+    "empty": {
+      "accommodations": "No tienes alojamientos favoritos",
+      "routes": "No tienes rutas favoritas",
+      "bikes": "No tienes bicicletas favoritas"
     },
+    "savedIn": "Guardado en",
     "tabs": {
       "accommodations": "Alojamientos",
       "routes": "Rutas",
       "bikes": "Bicicletas"
+    },
+    "months": {
+      "january": "Enero",
+      "february": "Febrero",
+      "march": "Marzo",
+      "april": "Abril",
+      "may": "Mayo",
+      "june": "Junio",
+      "july": "Julio",
+      "august": "Agosto",
+      "september": "Septiembre",
+      "october": "Octubre",
+      "november": "Noviembre",
+      "december": "Diciembre"
     }
   },
   "bookings": {
     "title": "Mis Reservas",
+    "loading": "Cargando tus reservas...",
+    "errorLoading": "Error al cargar las reservas",
+    "retry": "Intentar nuevamente",
+    "empty": "No tienes reservas aún",
+    "reservedFrom": "Reservado desde",
+    "to": "hasta",
     "status": {
       "pending": "Pendiente",
       "confirmed": "Confirmada",
       "cancelled": "Cancelada",
       "completed": "Completada"
     },
+    "paymentStatus": {
+      "paid": "Pagado",
+      "pending": "Pago pendiente",
+      "failed": "Pago fallido",
+      "refunded": "Reembolsado"
+    },
+    "guests": "Huéspedes",
+    "total": "Total",
+    "requests": "Solicitudes especiales",
     "actions": {
       "modify": "Modificar o cancelar reserva",
       "contact": "Contactar al anfitrión"
     },
-    "reservedFrom": "Reservado desde",
-    "to": "hasta",
     "hostInfo": "Anfitrión de mi reserva",
-    "location": "Ubicación del alojamiento"
+    "location": "Ubicación del alojamiento",
+    "months": {
+      "january": "Enero",
+      "february": "Febrero",
+      "march": "Marzo",
+      "april": "Abril",
+      "may": "Mayo",
+      "june": "Junio",
+      "july": "Julio",
+      "august": "Agosto",
+      "september": "Septiembre",
+      "october": "Octubre",
+      "november": "Noviembre",
+      "december": "Diciembre"
+    }
   },
   "profile": {
     "title": "Mi Perfil",
@@ -114,7 +159,18 @@
     "history": "Historial",
     "favorites": "Favoritos",
     "signOut": "Cerrar Sesión",
-    "deleteAccount": "Eliminar mi cuenta"
+    "deleteAccount": "Eliminar mi cuenta",
+    "checkSecurity": "Comprobar seguridad",
+    "contactSupport": "Contactar soporte",
+    "signOutConfirmation": "¿Estás seguro de que quieres cerrar sesión?",
+    "accountDeleted": "Cuenta eliminada",
+    "accountDeletedMessage": "Tu cuenta ha sido eliminada correctamente.",
+    "deleteError": "Error al eliminar la cuenta",
+    "noUserId": "No se encontró ID de usuario",
+    "unknownError": "Ocurrió un error desconocido",
+    "defaultFirstName": "Usuario",
+    "defaultLastName": "Nombre",
+    "checkPrivacity": "Comprobar privacidad"
   },
   "accommodation": {
     "perNight": "noche",
@@ -174,7 +230,9 @@
     "sort": "Ordenar",
     "map": "Mapa",
     "list": "Lista",
-    "grid": "Cuadrícula"
+    "grid": "Cuadrícula",
+    "remove": "Eliminar",
+    "pay": "Pagar"
   },
   "navigation": {
     "home": "Inicio",

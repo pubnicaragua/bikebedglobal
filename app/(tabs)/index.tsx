@@ -6,6 +6,7 @@ import {
   ScrollView,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -14,53 +15,39 @@ import { FilterChip } from '../../src/components/ui/FilterChip';
 import { Card } from '../../src/components/ui/Card';
 import { useI18n } from '../../src/hooks/useI18n';
 import { supabase } from '../../src/services/supabase';
+import { useAuth } from '../../src/hooks/useAuth';
 
-const sampleAccommodations = [
-  {
-    id: '1',
-    name: 'Apartamento en Machu Picchu',
-    location: 'Cusco, Perú',
-    price: '$100',
-    rating: 4.0,
-    reviewCount: 1,
-    imageUrl: 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg',
-  },
-  {
-    id: '2',
-    name: 'Casa Rural en los Andes',
-    location: 'Cusco, Perú',
-    price: '$85',
-    rating: 4.5,
-    reviewCount: 23,
-    imageUrl: 'https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg',
-  },
-];
+// Tipos para los datos
+type Accommodation = {
+  id: string;
+  name: string;
+  location: string;
+  price: string;
+  rating: number;
+  reviewCount: number;
+  imageUrl: string;
+  isFavorite: boolean;
+};
 
-const sampleRoutes = [
-  {
-    id: '1',
-    name: 'Tour Machu Picchu',
-    location: 'Cusco, Perú',
-    type: 'Ruta turística',
-    rating: 4.0,
-    reviewCount: 1,
-    imageUrl: 'https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg',
-  },
-  {
-    id: '2',
-    name: 'Camino del Inca',
-    location: 'Cusco, Perú',
-    type: 'Ruta de aventura',
-    rating: 4.8,
-    reviewCount: 156,
-    imageUrl: 'https://images.pexels.com/photos/2166711/pexels-photo-2166711.jpeg',
-  },
-];
+type Route = {
+  id: string;
+  name: string;
+  location: string;
+  type: string;
+  rating: number;
+  reviewCount: number;
+  imageUrl: string;
+  isFavorite: boolean;
+};
 
 export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [loading, setLoading] = useState(true);
   const { t } = useI18n();
+  const { user } = useAuth();
 
   const filters = [
     { key: 'all', label: t('home.filters.all') },
@@ -71,20 +58,219 @@ export default function HomeScreen() {
     { key: 'expensive', label: t('home.filters.expensive') },
   ];
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Obtener alojamientos
+        const { data: accommodationsData, error: accommodationsError } = await supabase
+          .from('accommodations')
+          .select(`
+            id,
+            name,
+            location,
+            price_per_night,
+            accommodation_images (
+              image_url,
+              is_primary
+            ),
+            accommodation_reviews (
+              rating
+            )
+          `)
+          .eq('is_active', true)
+          .limit(10);
+
+        if (accommodationsError) throw accommodationsError;
+
+        // Obtener favoritos del usuario
+        const { data: favoriteAccommodations, error: favoritesError } = await supabase
+          .from('favorite_accommodations')
+          .select('accommodation_id')
+          .eq('user_id', user?.id);
+
+        if (favoritesError) throw favoritesError;
+
+        const favoriteIds = favoriteAccommodations?.map(fav => fav.accommodation_id) || [];
+
+        const processedAccommodations = accommodationsData?.map(acc => {
+          const primaryImage = acc.accommodation_images?.find((img: any) => img.is_primary) || 
+                             acc.accommodation_images?.[0];
+          const reviews = acc.accommodation_reviews || [];
+          const avgRating = reviews.length > 0 
+            ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length
+            : 0;
+
+          return {
+            id: acc.id,
+            name: acc.name,
+            location: acc.location,
+            price: `$${acc.price_per_night}`,
+            rating: avgRating,
+            reviewCount: reviews.length,
+            imageUrl: primaryImage?.image_url || 'https://via.placeholder.com/300',
+            isFavorite: favoriteIds.includes(acc.id)
+          };
+        }) || [];
+
+        setAccommodations(processedAccommodations);
+
+        // Obtener rutas
+        const { data: routesData, error: routesError } = await supabase
+          .from('routes')
+          .select(`
+            id,
+            name,
+            start_location,
+            route_images (
+              image_url,
+              is_primary
+            ),
+            route_reviews (
+              rating
+            )
+          `)
+          .eq('is_active', true)
+          .limit(10);
+
+        if (routesError) throw routesError;
+
+        // Obtener rutas favoritas del usuario
+        const { data: favoriteRoutes, error: favoriteRoutesError } = await supabase
+          .from('favorite_routes')
+          .select('route_id')
+          .eq('user_id', user?.id);
+
+        if (favoriteRoutesError) throw favoriteRoutesError;
+
+        const favoriteRouteIds = favoriteRoutes?.map(fav => fav.route_id) || [];
+
+        const processedRoutes = routesData?.map(route => {
+          const primaryImage = route.route_images?.find((img: any) => img.is_primary) || 
+                             route.route_images?.[0];
+          const reviews = route.route_reviews || [];
+          const avgRating = reviews.length > 0 
+            ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length
+            : 0;
+
+          return {
+            id: route.id,
+            name: route.name,
+            location: route.start_location,
+            type: 'Ruta turística',
+            rating: avgRating,
+            reviewCount: reviews.length,
+            imageUrl: primaryImage?.image_url || 'https://via.placeholder.com/300',
+            isFavorite: favoriteRouteIds.includes(route.id)
+          };
+        }) || [];
+
+        setRoutes(processedRoutes);
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user?.id) {
+      fetchData();
+    }
+  }, [user?.id]);
+
   const handleLocationPress = () => {
-    // Handle location picker
     console.log('Location picker pressed');
   };
 
-  const handleAccommodationPress = (accommodation: any) => {
+  const handleAccommodationPress = (accommodation: Accommodation) => {
     router.push(`/accommodation/${accommodation.id}`);
   };
 
-  const handleRoutePress = (route: any) => {
+  const handleRoutePress = (route: Route) => {
     router.push(`/route/${route.id}`);
   };
 
-  const renderAccommodationCard = ({ item }: { item: any }) => (
+  const toggleFavoriteAccommodation = async (accommodation: Accommodation) => {
+    if (!user?.id) return;
+
+    try {
+      if (accommodation.isFavorite) {
+        // Eliminar de favoritos
+        const { error } = await supabase
+          .from('favorite_accommodations')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('accommodation_id', accommodation.id);
+
+        if (error) throw error;
+      } else {
+        // Agregar a favoritos
+        const { error } = await supabase
+          .from('favorite_accommodations')
+          .insert([
+            { 
+              user_id: user.id, 
+              accommodation_id: accommodation.id 
+            }
+          ]);
+
+        if (error) throw error;
+      }
+
+      // Actualizar estado local
+      setAccommodations(prev => prev.map(item => 
+        item.id === accommodation.id 
+          ? { ...item, isFavorite: !item.isFavorite } 
+          : item
+      ));
+
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
+  };
+
+  const toggleFavoriteRoute = async (route: Route) => {
+    if (!user?.id) return;
+
+    try {
+      if (route.isFavorite) {
+        // Eliminar de favoritos
+        const { error } = await supabase
+          .from('favorite_routes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('route_id', route.id);
+
+        if (error) throw error;
+      } else {
+        // Agregar a favoritos
+        const { error } = await supabase
+          .from('favorite_routes')
+          .insert([
+            { 
+              user_id: user.id, 
+              route_id: route.id 
+            }
+          ]);
+
+        if (error) throw error;
+      }
+
+      // Actualizar estado local
+      setRoutes(prev => prev.map(item => 
+        item.id === route.id 
+          ? { ...item, isFavorite: !item.isFavorite } 
+          : item
+      ));
+
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
+  };
+
+  const renderAccommodationCard = ({ item }: { item: Accommodation }) => (
     <Card
       imageUrl={item.imageUrl}
       title={item.name}
@@ -93,12 +279,13 @@ export default function HomeScreen() {
       rating={item.rating}
       reviewCount={item.reviewCount}
       onPress={() => handleAccommodationPress(item)}
-      onFavoritePress={() => console.log('Favorite pressed')}
+      onFavoritePress={() => toggleFavoriteAccommodation(item)}
+      isFavorite={item.isFavorite}
       style={styles.card}
     />
   );
 
-  const renderRouteCard = ({ item }: { item: any }) => (
+  const renderRouteCard = ({ item }: { item: Route }) => (
     <Card
       imageUrl={item.imageUrl}
       title={item.name}
@@ -106,10 +293,27 @@ export default function HomeScreen() {
       rating={item.rating}
       reviewCount={item.reviewCount}
       onPress={() => handleRoutePress(item)}
-      onFavoritePress={() => console.log('Favorite pressed')}
+      onFavoritePress={() => toggleFavoriteRoute(item)}
+      isFavorite={item.isFavorite}
       style={styles.card}
     />
   );
+
+  const renderEmptyComponent = (message: string) => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>{message}</Text>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4ADE80" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -151,12 +355,13 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={sampleAccommodations}
+            data={accommodations}
             renderItem={renderAccommodationCard}
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalList}
+            ListEmptyComponent={() => renderEmptyComponent(t('home.noAccommodations'))}
           />
         </View>
 
@@ -172,12 +377,13 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={sampleRoutes}
+            data={routes}
             renderItem={renderRouteCard}
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalList}
+            ListEmptyComponent={() => renderEmptyComponent(t('home.noRoutes'))}
           />
         </View>
 
@@ -193,12 +399,13 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={sampleAccommodations.slice(0, 1)}
+            data={accommodations.slice(0, 1)}
             renderItem={renderAccommodationCard}
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalList}
+            ListEmptyComponent={() => renderEmptyComponent(t('home.noServices'))}
           />
         </View>
       </ScrollView>
@@ -246,9 +453,26 @@ const styles = StyleSheet.create({
   },
   horizontalList: {
     paddingHorizontal: 16,
+    minHeight: 200,
   },
   card: {
     width: 280,
     marginRight: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111827',
+  },
+  emptyContainer: {
+    width: 280,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  emptyText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });

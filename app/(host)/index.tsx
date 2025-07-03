@@ -23,6 +23,31 @@ interface HostStats {
   unreadMessages: number;
 }
 
+const StatCard = ({ 
+  icon: Icon, 
+  title, 
+  value, 
+  subtitle, 
+  color = '#4ADE80' 
+}: {
+  icon: any;
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  color?: string;
+}) => (
+  <View style={styles.statCard}>
+    <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
+      <Icon size={24} color={color} />
+    </View>
+    <View style={styles.statContent}>
+      <Text style={styles.statTitle}>{title}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
+    </View>
+  </View>
+);
+
 export default function HostDashboardScreen() {
   const [stats, setStats] = useState<HostStats>({
     totalAccommodations: 0,
@@ -107,25 +132,6 @@ export default function HostDashboardScreen() {
     }
   };
 
-  const StatCard = ({ icon: Icon, title, value, subtitle, color = '#4ADE80' }: {
-    icon: any;
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    color?: string;
-  }) => (
-    <View style={styles.statCard}>
-      <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
-        <Icon size={24} color={color} />
-      </View>
-      <View style={styles.statContent}>
-        <Text style={styles.statTitle}>{title}</Text>
-        <Text style={styles.statValue}>{value}</Text>
-        {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
-      </View>
-    </View>
-  );
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -153,7 +159,7 @@ export default function HostDashboardScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.statsGrid}>
           <StatCard
@@ -200,7 +206,10 @@ export default function HostDashboardScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/(host)/bike')}
+          >
             <View style={styles.actionIcon}>
               <Bike size={20} color="#4ADE80" />
             </View>

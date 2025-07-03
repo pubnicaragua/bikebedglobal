@@ -9,9 +9,9 @@
       "noAccount": "Don't have an account yet?",
       "register": "Sign up with us",
       "social": {
-      "google": "Continue with Google",
-      "facebook": "Continue with Facebook"
-    }
+        "google": "Continue with Google",
+        "facebook": "Continue with Facebook"
+      }
     },
     "register": {
       "title": "Create Account",
@@ -72,45 +72,83 @@
   },
   "favorites": {
     "title": "Saved",
-    "sections": {
-      "thisMonth": "Saved this month",
-      "months": {
-        "january": "Saved in January",
-        "february": "Saved in February",
-        "march": "Saved in March",
-        "april": "Saved in April",
-        "may": "Saved in May",
-        "june": "Saved in June",
-        "july": "Saved in July",
-        "august": "Saved in August",
-        "september": "Saved in September",
-        "october": "Saved in October",
-        "november": "Saved in November",
-        "december": "Saved in December"
-      }
+    "saved": "Saved",
+    "share": "Share",
+    "shareMessage": "Check out this accommodation I found in the app!",
+    "removeFavorite": "Remove favorite",
+    "confirmRemoveTitle": "Remove favorite",
+    "confirmRemoveMessage": "Are you sure you want to remove this item from your favorites?",
+    "shareError": "Error sharing",
+    "removeError": "Error removing favorite",
+    "empty": {
+      "accommodations": "You have no favorite accommodations",
+      "routes": "You have no favorite routes",
+      "bikes": "You have no favorite bikes"
     },
+    "savedIn": "Saved in",
     "tabs": {
       "accommodations": "Accommodations",
       "routes": "Routes",
       "bikes": "Bikes"
+    },
+    "months": {
+      "january": "January",
+      "february": "February",
+      "march": "March",
+      "april": "April",
+      "may": "May",
+      "june": "June",
+      "july": "July",
+      "august": "August",
+      "september": "September",
+      "october": "October",
+      "november": "November",
+      "december": "December"
     }
   },
   "bookings": {
     "title": "My Reservations",
+    "loading": "Loading your reservations...",
+    "errorLoading": "Error loading reservations",
+    "retry": "Try again",
+    "empty": "You don't have any reservations yet",
+    "reservedFrom": "Reserved from",
+    "to": "to",
     "status": {
       "pending": "Pending",
       "confirmed": "Confirmed",
       "cancelled": "Cancelled",
       "completed": "Completed"
     },
+    "paymentStatus": {
+      "paid": "Paid",
+      "pending": "Pending payment",
+      "failed": "Payment failed",
+      "refunded": "Refunded"
+    },
+    "guests": "Guests",
+    "total": "Total",
+    "requests": "Special requests",
     "actions": {
       "modify": "Modify or cancel reservation",
       "contact": "Contact the host"
     },
-    "reservedFrom": "Reserved from",
-    "to": "to",
     "hostInfo": "Host of my reservation",
-    "location": "Accommodation location"
+    "location": "Accommodation location",
+    "months": {
+      "january": "January",
+      "february": "February",
+      "march": "March",
+      "april": "April",
+      "may": "May",
+      "june": "June",
+      "july": "July",
+      "august": "August",
+      "september": "September",
+      "october": "October",
+      "november": "November",
+      "december": "December"
+    }
   },
   "profile": {
     "title": "My Profile",
@@ -118,7 +156,17 @@
     "history": "History",
     "favorites": "Favorites",
     "signOut": "Sign Out",
-    "deleteAccount": "Delete my account"
+    "deleteAccount": "Delete my account",
+    "checkSecurity": "Check Security",
+    "contactSupport": "Contact Support",
+    "signOutConfirmation": "Are you sure you want to sign out?",
+    "accountDeleted": "Account Deleted",
+    "accountDeletedMessage": "Your account has been successfully deleted.",
+    "deleteError": "Error deleting account",
+    "noUserId": "No user ID found",
+    "unknownError": "An unknown error occurred",
+    "defaultFirstName": "User",
+    "defaultLastName": "Name"
   },
   "accommodation": {
     "perNight": "night",
@@ -178,7 +226,8 @@
     "sort": "Sort",
     "map": "Map",
     "list": "List",
-    "grid": "Grid"
+    "grid": "Grid",
+    "remove": "Remove"
   },
   "navigation": {
     "home": "Home",

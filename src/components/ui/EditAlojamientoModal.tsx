@@ -10,8 +10,11 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { supabase } from '../../services/supabase';
+import { X } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 interface Alojamiento {
   id: string;
@@ -31,6 +34,7 @@ interface Alojamiento {
   has_wifi: boolean;
   has_kitchen: boolean;
   has_parking: boolean;
+  image_url?: string;
 }
 
 interface EditAlojamientoModalProps {
@@ -51,10 +55,10 @@ const EditAlojamientoModal: React.FC<EditAlojamientoModalProps> = ({
     description: '',
     location: '',
     address: '',
-    pricePerNight: '',
-    capacity: '',
-    bedrooms: '',
-    bathrooms: '',
+    pricePerNight: '0',
+    capacity: '1',
+    bedrooms: '1',
+    bathrooms: '1',
     hasBikeStorage: false,
     hasBikeRental: false,
     hasBikeTools: false,
@@ -64,7 +68,9 @@ const EditAlojamientoModal: React.FC<EditAlojamientoModalProps> = ({
     hasParking: false,
   });
 
+  const [image, setImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (alojamiento) {
@@ -85,11 +91,59 @@ const EditAlojamientoModal: React.FC<EditAlojamientoModalProps> = ({
         hasKitchen: alojamiento.has_kitchen || false,
         hasParking: alojamiento.has_parking || false,
       });
+      setImage(alojamiento.image_url || null);
     }
   }, [alojamiento]);
 
   const handleChange = (field: keyof typeof formData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const pickImage = async () => {
+    setIsUploading(true);
+    try {
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        setImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const uploadImage = async () => {
+    if (!image || !alojamiento?.id) return null;
+    
+    try {
+      const response = await fetch(image);
+      const blob = await response.blob();
+      
+      const fileExt = image.split('.').pop();
+      const fileName = `${alojamiento.id}-${Date.now()}.${fileExt}`;
+      const filePath = `accommodations/${fileName}`;
+
+      const { data, error } = await supabase
+        .storage
+        .from('accommodation-images')
+        .upload(filePath, blob);
+
+      if (error) throw error;
+
+      return data.path;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'No se pudo subir la imagen');
+      return null;
+    }
   };
 
   const handleSave = async () => {
@@ -99,21 +153,35 @@ const EditAlojamientoModal: React.FC<EditAlojamientoModalProps> = ({
     }
 
     // Validación de campos requeridos
-    if (!formData.name || !formData.description || !formData.location || !formData.address) {
+    if (!formData.name.trim() || !formData.description.trim() || 
+        !formData.location.trim() || !formData.address.trim()) {
       Alert.alert('Error', 'Por favor complete todos los campos requeridos');
+      return;
+    }
+
+    // Validación de campos numéricos
+    if (isNaN(Number(formData.pricePerNight))){
+      Alert.alert('Error', 'El precio por noche debe ser un número válido');
       return;
     }
 
     setIsLoading(true);
 
     try {
+      let imagePath = null;
+      if (image && !image.startsWith('https://')) {
+        imagePath = await uploadImage();
+      } else if (image) {
+        imagePath = image.split('/').pop();
+      }
+
       const { error } = await supabase
         .from('accommodations')
         .update({
-          name: formData.name,
-          description: formData.description,
-          location: formData.location,
-          address: formData.address,
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          location: formData.location.trim(),
+          address: formData.address.trim(),
           price_per_night: Number(formData.pricePerNight) || 0,
           capacity: Number(formData.capacity) || 1,
           bedrooms: Number(formData.bedrooms) || 1,
@@ -125,6 +193,7 @@ const EditAlojamientoModal: React.FC<EditAlojamientoModalProps> = ({
           has_wifi: formData.hasWifi,
           has_kitchen: formData.hasKitchen,
           has_parking: formData.hasParking,
+          image_url: imagePath ? `${supabase.storage}/object/public/accommodation-images/${imagePath}` : null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', alojamiento.id);
@@ -154,11 +223,49 @@ const EditAlojamientoModal: React.FC<EditAlojamientoModalProps> = ({
           <ScrollView contentContainerStyle={styles.scrollViewContent}>
             <View style={styles.header}>
               <Text style={styles.title}>Editar Alojamiento</Text>
+              <TouchableOpacity onPress={onClose}>
+                <X size={24} color="#9CA3AF" />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Información básica</Text>
               
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Imagen del alojamiento</Text>
+                <TouchableOpacity 
+                  style={styles.imageUploadButton} 
+                  onPress={pickImage}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.imageUploadButtonText}>
+                      {image ? 'Cambiar imagen' : 'Seleccionar imagen'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                
+                {image && (
+                  <>
+                    <View style={styles.imagePreviewContainer}>
+                      <Image 
+                        source={{ uri: image }} 
+                        style={styles.imagePreview} 
+                      />
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.removeImageButton} 
+                      onPress={() => setImage(null)}
+                      disabled={isUploading}
+                    >
+                      <Text style={styles.removeImageButtonText}>Eliminar imagen</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Nombre del alojamiento*</Text>
                 <TextInput
@@ -341,9 +448,9 @@ const EditAlojamientoModal: React.FC<EditAlojamientoModalProps> = ({
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.createButton, isLoading && styles.disabledButton]}
+                style={[styles.createButton, (isLoading || isUploading) && styles.disabledButton]}
                 onPress={handleSave}
-                disabled={isLoading}
+                disabled={isLoading || isUploading}
               >
                 {isLoading ? (
                   <ActivityIndicator color="#000" />
@@ -463,6 +570,38 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  imageUploadButton: {
+    backgroundColor: '#374151',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  imageUploadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+  imagePreviewContainer: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    resizeMode: 'cover',
+  },
+  removeImageButton: {
+    backgroundColor: '#EF4444',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  removeImageButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
   },
 });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,43 +6,108 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useI18n } from '../../src/hooks/useI18n';
+import { supabase } from '../../src/services/supabase';
+import { useAuth } from '../../src/hooks/useAuth';
 
-const sampleBookings = [
-  {
-    id: '1',
-    name: 'Apartamento en Machu Picchu',
-    checkIn: '27',
-    checkOut: '31',
-    month: 'junio',
-    status: 'confirmed',
-    imageUrl: 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg',
-  },
-  {
-    id: '2',
-    name: 'Apartamento en Machu Picchu',
-    checkIn: '27',
-    checkOut: '31',
-    month: 'junio',
-    status: 'confirmed',
-    imageUrl: 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg',
-  },
-  {
-    id: '3',
-    name: 'Apartamento en Machu Picchu',
-    checkIn: '27',
-    checkOut: '31',
-    month: 'junio',
-    status: 'confirmed',
-    imageUrl: 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg',
-  },
-];
+interface Booking {
+  id: string;
+  user_id: string;
+  accommodation_id: string;
+  check_in_date: string;
+  check_out_date: string;
+  guests: number;
+  total_price: number;
+  status: 'confirmed' | 'pending' | 'cancelled';
+  payment_status: string;
+  special_requests?: string;
+  created_at: string;
+  accommodation: {
+    name: string;
+    image_url: string;
+  };
+}
 
 export default function BookingsScreen() {
   const { t } = useI18n();
+  const { user } = useAuth();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      fetchBookings();
+    }
+  }, [user]);
+
+  const fetchBookings = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { data, error: supabaseError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          user_id,
+          accommodation_id,
+          check_in_date,
+          check_out_date,
+          guests,
+          total_price,
+          status,
+          payment_status,
+          special_requests,
+          created_at,
+          accommodations (
+            name,
+            accommodation_images (
+              image_url
+            )
+          )
+        `)
+        .eq('user_id', user?.id)
+        .order('check_in_date', { ascending: false });
+
+      if (supabaseError) throw supabaseError;
+
+      const processedBookings = data?.map((booking: any) => ({
+        ...booking,
+        accommodation: {
+          name: booking.accommodations?.name || 'Alojamiento desconocido',
+          image_url: booking.accommodations?.accommodation_images[0]?.image_url || 'https://via.placeholder.com/150'
+        }
+      })) || [];
+
+      setBookings(processedBookings);
+    } catch (err) {
+      console.error('Error fetching bookings:', err);
+      setError(t('bookings.errorLoading'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const months = [
+      t('months.january'), t('months.february'), t('months.march'),
+      t('months.april'), t('months.may'), t('months.june'),
+      t('months.july'), t('months.august'), t('months.september'),
+      t('months.october'), t('months.november'), t('months.december')
+    ];
+    
+    const date = new Date(dateString);
+    return {
+      day: date.getDate().toString(),
+      month: months[date.getMonth()] || '',
+      year: date.getFullYear().toString()
+    };
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -61,33 +126,130 @@ export default function BookingsScreen() {
     return t(`bookings.status.${status}`);
   };
 
-  const renderBookingItem = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      style={styles.bookingItem}
-      onPress={() => router.push(`/booking/${item.id}`)}
-    >
-      <Image source={{ uri: item.imageUrl }} style={styles.bookingImage} />
-      <View style={styles.bookingContent}>
-        <View style={styles.bookingHeader}>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(item.status) },
-            ]}
-          >
-            <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+  const getPaymentStatusText = (status: string) => {
+    return t(`bookings.paymentStatus.${status.toLowerCase()}`) || status;
+  };
+
+  // Funciones placeholder para los botones (implementar mañana)
+  const handleEditBooking = (bookingId: string) => {
+    console.log('Editar reserva:', bookingId);
+    // router.push(`/booking/edit/${bookingId}`);
+  };
+
+  const handleCancelBooking = (bookingId: string) => {
+    console.log('Cancelar reserva:', bookingId);
+    // Mostrar confirmación antes de cancelar
+  };
+
+  const handlePayBooking = (bookingId: string) => {
+    console.log('Pagar reserva:', bookingId);
+    // router.push(`/payment/${bookingId}`);
+  };
+
+  const renderBookingItem = ({ item }: { item: Booking }) => {
+    const checkIn = formatDate(item.check_in_date);
+    const checkOut = formatDate(item.check_out_date);
+    
+    return (
+      <View style={styles.bookingItem}>
+        <TouchableOpacity onPress={() => router.push(`/booking/${item.id}`)}>
+          <Image 
+            source={{ uri: item.accommodation.image_url }} 
+            style={styles.bookingImage} 
+          />
+          <View style={styles.bookingContent}>
+            <View style={styles.bookingHeader}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: getStatusColor(item.status) },
+                ]}
+              >
+                <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+              </View>
+              <View style={styles.paymentStatus}>
+                <Text style={[styles.paymentStatusText, { 
+                  color: item.payment_status === 'paid' ? '#4ADE80' : '#F59E0B'
+                }]}>
+                  {getPaymentStatusText(item.payment_status)}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.bookingTitle}>{item.accommodation.name}</Text>
+            <Text style={styles.bookingDates}>
+              {t('bookings.reservedFrom')} {checkIn.day} al {checkOut.day} de {checkIn.month} {checkIn.year}
+            </Text>
+            <View style={styles.bookingDetails}>
+              <Text style={styles.detailText}>
+                {t('bookings.guests')}: {item.guests}
+              </Text>
+              <Text style={styles.detailText}>
+                {t('bookings.total')}: ${item.total_price.toFixed(2)}
+              </Text>
+            </View>
+            {item.special_requests && (
+              <Text style={styles.specialRequests} numberOfLines={1}>
+                {t('bookings.requests')}: {item.special_requests}
+              </Text>
+            )}
           </View>
-          <TouchableOpacity style={styles.menuButton}>
-            <Text style={styles.menuText}>⋮</Text>
+        </TouchableOpacity>
+
+        {/* Nuevos botones de acciones */}
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.editButton]}
+            onPress={() => handleEditBooking(item.id)}
+          >
+            <Text style={styles.actionButtonText}>{t('common.edit')}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.cancelButton]}
+            onPress={() => handleCancelBooking(item.id)}
+          >
+            <Text style={styles.actionButtonText}>{t('common.cancel')}</Text>
+          </TouchableOpacity>
+          
+          {item.payment_status !== 'paid' && (
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.payButton]}
+              onPress={() => handlePayBooking(item.id)}
+            >
+              <Text style={styles.actionButtonText}>{t('common.pay')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4ADE80" />
+          <Text style={styles.loadingText}>{t('bookings.loading')}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={fetchBookings}
+          >
+            <Text style={styles.retryButtonText}>{t('bookings.retry')}</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.bookingTitle}>{item.name}</Text>
-        <Text style={styles.bookingDates}>
-          {t('bookings.reservedFrom')} {item.checkIn} al {item.checkOut} de {item.month}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -95,13 +257,21 @@ export default function BookingsScreen() {
         <Text style={styles.title}>{t('bookings.title')}</Text>
       </View>
 
-      <FlatList
-        data={sampleBookings}
-        renderItem={renderBookingItem}
-        keyExtractor={(item) => item.id}
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      />
+      {bookings.length > 0 ? (
+        <FlatList
+          data={bookings}
+          renderItem={renderBookingItem}
+          keyExtractor={(item) => item.id}
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshing={loading}
+          onRefresh={fetchBookings}
+        />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>{t('bookings.empty')}</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -126,19 +296,17 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   bookingItem: {
-    flexDirection: 'row',
     backgroundColor: '#1F2937',
     borderRadius: 16,
     marginBottom: 16,
     overflow: 'hidden',
   },
   bookingImage: {
-    width: 80,
-    height: 80,
+    width: '100%',
+    height: 200,
     backgroundColor: '#374151',
   },
   bookingContent: {
-    flex: 1,
     padding: 16,
   },
   bookingHeader: {
@@ -157,22 +325,107 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  menuButton: {
+  paymentStatus: {
     padding: 4,
   },
-  menuText: {
-    color: '#9CA3AF',
-    fontSize: 18,
-    fontWeight: 'bold',
+  paymentStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   bookingTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
   },
   bookingDates: {
     color: '#9CA3AF',
     fontSize: 14,
+    marginBottom: 8,
+  },
+  bookingDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  detailText: {
+    color: '#D1D5DB',
+    fontSize: 14,
+  },
+  specialRequests: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  // Nuevos estilos para los botones de acción
+  actionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  editButton: {
+    backgroundColor: '#3B82F6', // Azul
+  },
+  cancelButton: {
+    backgroundColor: '#EF4444', // Rojo
+  },
+  payButton: {
+    backgroundColor: '#10B981', // Verde
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    marginTop: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#4ADE80',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#000000',
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    color: '#9CA3AF',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });

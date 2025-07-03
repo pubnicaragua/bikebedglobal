@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Text, View, Image, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MenuProvider } from 'react-native-popup-menu'; // Importación añadida
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
@@ -71,103 +72,105 @@ export default function App() {
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <StatusBar style="auto" />
-      
-      {/* Header */}
-      <View className="px-4 py-3 flex-row justify-between items-center border-b border-gray-200">
-        <View className="flex-row items-center">
-          <Text className="text-2xl font-bold text-gray-800">Discover</Text>
-        </View>
-        <View className="flex-row space-x-4">
-          <TouchableOpacity className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-            <Text className="text-lg">🔔</Text>
-          </TouchableOpacity>
-          <TouchableOpacity className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-            <Text className="text-lg">👤</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Main Content */}
-      <ScrollView className="flex-1">
-        {/* Search Bar */}
-        <View className="px-4 py-3">
-          <View className="flex-row items-center bg-gray-100 rounded-full px-4 py-2">
-            <Text className="text-gray-400 mr-2">🔍</Text>
-            <TextInput
-              className="flex-1 text-gray-800"
-              placeholder="Search products..."
-              value={searchText}
-              onChangeText={setSearchText}
-            />
+    <MenuProvider> {/* Envuelve toda tu aplicación con MenuProvider */}
+      <SafeAreaView className="flex-1 bg-white">
+        <StatusBar style="auto" />
+        
+        {/* Header */}
+        <View className="px-4 py-3 flex-row justify-between items-center border-b border-gray-200">
+          <View className="flex-row items-center">
+            <Text className="text-2xl font-bold text-gray-800">Discover</Text>
+          </View>
+          <View className="flex-row space-x-4">
+            <TouchableOpacity className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+              <Text className="text-lg">🔔</Text>
+            </TouchableOpacity>
+            <TouchableOpacity className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+              <Text className="text-lg">👤</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Categories */}
-        <View className="mt-4">
-          <Text className="px-4 text-lg font-bold text-gray-800 mb-3">Categories</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4">
-            {categories.map((category, index) => (
-              <TouchableOpacity
-                key={index}
-                className={`mr-4 items-center justify-center w-20 h-20 rounded-lg ${category.color}`}
-              >
-                <Text className="text-2xl mb-1">{category.icon}</Text>
-                <Text className="text-white font-medium text-xs">{category.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Featured */}
-        <View className="mt-6">
-          <Text className="px-4 text-lg font-bold text-gray-800 mb-3">Featured</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4">
-            {featuredItems.map((item) => (
-              <TouchableOpacity key={item.id} className="mr-4 w-64 rounded-lg overflow-hidden">
-                <Image source={{ uri: item.image }} className="w-full h-32 rounded-lg" />
-                <View className="p-3 bg-white">
-                  <Text className="font-bold text-gray-800">{item.title}</Text>
-                  <Text className="text-gray-600 text-xs mt-1">{item.description}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Popular */}
-        <View className="mt-6 pb-20">
-          <Text className="px-4 text-lg font-bold text-gray-800 mb-3">Popular</Text>
-          <View className="px-4 flex-row flex-wrap justify-between">
-            {popularItems.map((item) => (
-              <TouchableOpacity key={item.id} className="w-[48%] mb-4 rounded-lg overflow-hidden bg-white shadow-sm">
-                <Image source={{ uri: item.image }} className="w-full h-32 rounded-t-lg" />
-                <View className="p-3">
-                  <Text className="font-bold text-gray-800">{item.title}</Text>
-                  <Text className="text-blue-600 font-bold mt-1">{item.price}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+        {/* Main Content */}
+        <ScrollView className="flex-1">
+          {/* Search Bar */}
+          <View className="px-4 py-3">
+            <View className="flex-row items-center bg-gray-100 rounded-full px-4 py-2">
+              <Text className="text-gray-400 mr-2">🔍</Text>
+              <TextInput
+                className="flex-1 text-gray-800"
+                placeholder="Search products..."
+                value={searchText}
+                onChangeText={setSearchText}
+              />
+            </View>
           </View>
-        </View>
-      </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View className="flex-row justify-around items-center py-3 bg-white border-t border-gray-200">
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.name}
-            className={`items-center ${activeTab === tab.name ? 'opacity-100' : 'opacity-50'}`}
-            onPress={() => setActiveTab(tab.name)}
-          >
-            <Text className="text-2xl">{tab.icon}</Text>
-            <Text className={`text-xs mt-1 ${activeTab === tab.name ? 'font-bold text-blue-500' : 'text-gray-600'}`}>
-              {tab.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </SafeAreaView>
+          {/* Categories */}
+          <View className="mt-4">
+            <Text className="px-4 text-lg font-bold text-gray-800 mb-3">Categories</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4">
+              {categories.map((category, index) => (
+                <TouchableOpacity
+                  key={index}
+                  className={`mr-4 items-center justify-center w-20 h-20 rounded-lg ${category.color}`}
+                >
+                  <Text className="text-2xl mb-1">{category.icon}</Text>
+                  <Text className="text-white font-medium text-xs">{category.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Featured */}
+          <View className="mt-6">
+            <Text className="px-4 text-lg font-bold text-gray-800 mb-3">Featured</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4">
+              {featuredItems.map((item) => (
+                <TouchableOpacity key={item.id} className="mr-4 w-64 rounded-lg overflow-hidden">
+                  <Image source={{ uri: item.image }} className="w-full h-32 rounded-lg" />
+                  <View className="p-3 bg-white">
+                    <Text className="font-bold text-gray-800">{item.title}</Text>
+                    <Text className="text-gray-600 text-xs mt-1">{item.description}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Popular */}
+          <View className="mt-6 pb-20">
+            <Text className="px-4 text-lg font-bold text-gray-800 mb-3">Popular</Text>
+            <View className="px-4 flex-row flex-wrap justify-between">
+              {popularItems.map((item) => (
+                <TouchableOpacity key={item.id} className="w-[48%] mb-4 rounded-lg overflow-hidden bg-white shadow-sm">
+                  <Image source={{ uri: item.image }} className="w-full h-32 rounded-t-lg" />
+                  <View className="p-3">
+                    <Text className="font-bold text-gray-800">{item.title}</Text>
+                    <Text className="text-blue-600 font-bold mt-1">{item.price}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Bottom Navigation */}
+        <View className="flex-row justify-around items-center py-3 bg-white border-t border-gray-200">
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab.name}
+              className={`items-center ${activeTab === tab.name ? 'opacity-100' : 'opacity-50'}`}
+              onPress={() => setActiveTab(tab.name)}
+            >
+              <Text className="text-2xl">{tab.icon}</Text>
+              <Text className={`text-xs mt-1 ${activeTab === tab.name ? 'font-bold text-blue-500' : 'text-gray-600'}`}>
+                {tab.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </SafeAreaView>
+    </MenuProvider>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   View,
@@ -7,135 +7,239 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
+  Switch,
   Alert,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
+import { supabase } from '../../services/supabase';
 import { X } from 'lucide-react-native';
-
-interface Alojamiento {
-  name: string;
-  description: string;
-  location: string;
-  address: string;
-  pricePerNight: string;
-  capacity: string;
-  bedrooms: string;
-  bathrooms: string;
-  hasBikeStorage: boolean;
-  hasBikeRental: boolean;
-  hasBikeTools: boolean;
-  hasLaundry: boolean;
-  hasWifi: boolean;
-  hasKitchen: boolean;
-  hasParking: boolean;
-}
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 
 interface CreateAlojamientoModalProps {
   visible: boolean;
   onClose: () => void;
-  alojamiento: Alojamiento | null;
-  onAccommodationCreated:  (updatedData: Alojamiento) => void;
+  onAccommodationCreated: () => void;
 }
 
-const EditAlojamientoModal: React.FC<CreateAlojamientoModalProps> = ({
+const CreateAlojamientoModal: React.FC<CreateAlojamientoModalProps> = ({
   visible,
   onClose,
-  alojamiento,
   onAccommodationCreated,
 }) => {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
-  const [address, setAddress] = useState('');
-  const [pricePerNight, setPricePerNight] = useState('');
-  const [capacity, setCapacity] = useState('');
-  const [bedrooms, setBedrooms] = useState('');
-  const [bathrooms, setBathrooms] = useState('');
-  const [hasBikeStorage, setHasBikeStorage] = useState(false);
-  const [hasBikeRental, setHasBikeRental] = useState(false);
-  const [hasBikeTools, setHasBikeTools] = useState(false);
-  const [hasLaundry, setHasLaundry] = useState(false);
-  const [hasWifi, setHasWifi] = useState(false);
-  const [hasKitchen, setHasKitchen] = useState(false);
-  const [hasParking, setHasParking] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    location: '',
+    address: '',
+    pricePerNight: '0',
+    capacity: '1',
+    bedrooms: '1',
+    bathrooms: '1',
+    hasBikeStorage: false,
+    hasBikeRental: false,
+    hasBikeTools: false,
+    hasLaundry: false,
+    hasWifi: false,
+    hasKitchen: false,
+    hasParking: false,
+  });
 
-  // Cargar los datos cuando se abre el modal
-  useEffect(() => {
-    if (alojamiento) {
-      setName(alojamiento.name);
-      setDescription(alojamiento.description);
-      setLocation(alojamiento.location);
-      setAddress(alojamiento.address);
-      setPricePerNight(alojamiento.pricePerNight);
-      setCapacity(alojamiento.capacity);
-      setBedrooms(alojamiento.bedrooms);
-      setBathrooms(alojamiento.bathrooms);
-      setHasBikeStorage(alojamiento.hasBikeStorage);
-      setHasBikeRental(alojamiento.hasBikeRental);
-      setHasBikeTools(alojamiento.hasBikeTools);
-      setHasLaundry(alojamiento.hasLaundry);
-      setHasWifi(alojamiento.hasWifi);
-      setHasKitchen(alojamiento.hasKitchen);
-      setHasParking(alojamiento.hasParking);
+  const [image, setImage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleChange = (field: keyof typeof formData, value: string | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const pickImage = async () => {
+    setIsUploading(true);
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'We need access to your photos to select images');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'Failed to select image');
+    } finally {
+      setIsUploading(false);
     }
-  }, [alojamiento]);
+  };
 
-  const handleSave = () => {
-    if (
-      !name ||
-      !location ||
-      !address ||
-      !pricePerNight ||
-      !capacity ||
-      !bedrooms ||
-      !bathrooms
-    ) {
-      Alert.alert('Error', 'Por favor completa todos los campos obligatorios.');
+  const uploadImage = async (): Promise<string | null> => {
+    if (!image) return null;
+
+    try {
+      // Verify user is authenticated
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error(userError?.message || 'User not authenticated');
+      }
+
+      // Read and prepare the file
+      const base64 = await FileSystem.readAsStringAsync(image, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const fileExt = image.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const filePath = `accommodations/${fileName}`;
+
+      // Upload with proper content type
+      const { data, error: uploadError } = await supabase
+        .storage
+        .from('accommodation-images')
+        .upload(filePath, decode(base64), {
+          contentType: `image/${fileExt}`,
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase
+        .storage
+        .from('accommodation-images')
+        .getPublicUrl(data.path);
+
+      return publicUrl;
+    } catch (error: unknown) {
+      console.error('Upload error:', error);
+      
+      let errorMessage = 'Failed to upload image';
+      if (error instanceof Error) {
+        if (error.message.includes('row-level security policy')) {
+          errorMessage = 'You don\'t have upload permissions. Contact support.';
+        } else if (error.message.includes('Content-Type')) {
+          errorMessage = 'Invalid image format';
+        }
+      }
+      
+      Alert.alert('Upload Error', errorMessage);
+      return null;
+    }
+  };
+
+  const handleSave = async () => {
+    // Validation
+    if (!formData.name.trim() || !formData.description.trim() || 
+        !formData.location.trim() || !formData.address.trim()) {
+      Alert.alert('Error', 'Please fill all required fields');
       return;
     }
 
-    setLoading(true);
-    
-    const updatedAlojamiento: Alojamiento = {
-      name,
-      description,
-      location,
-      address,
-      pricePerNight,
-      capacity,
-      bedrooms,
-      bathrooms,
-      hasBikeStorage,
-      hasBikeRental,
-      hasBikeTools,
-      hasLaundry,
-      hasWifi,
-      hasKitchen,
-      hasParking,
-    };
-    
-    onAccommodationCreated(updatedAlojamiento);
-    setLoading(false);
+    if (isNaN(Number(formData.pricePerNight))) {
+      Alert.alert('Error', 'Price per night must be a valid number');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Verify authentication
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error(userError?.message || 'User not authenticated');
+      }
+
+      // Upload image if exists
+      let imageUrl = null;
+      if (image) {
+        imageUrl = await uploadImage();
+        if (!imageUrl) {
+          Alert.alert('Warning', 'Accommodation will be created without image');
+        }
+      }
+
+      // Create accommodation
+      const { data, error } = await supabase
+        .from('accommodations')
+        .insert({
+          host_id: user.id,
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          location: formData.location.trim(),
+          address: formData.address.trim(),
+          price_per_night: Number(formData.pricePerNight) || 0,
+          capacity: Number(formData.capacity) || 1,
+          bedrooms: Number(formData.bedrooms) || 1,
+          bathrooms: Number(formData.bathrooms) || 1,
+          has_bike_storage: formData.hasBikeStorage,
+          has_bike_rental: formData.hasBikeRental,
+          has_bike_tools: formData.hasBikeTools,
+          has_laundry: formData.hasLaundry,
+          has_wifi: formData.hasWifi,
+          has_kitchen: formData.hasKitchen,
+          has_parking: formData.hasParking,
+          is_active: true
+        })
+        .select();
+
+      if (error) throw error;
+
+      // Create image record if we have a URL
+      if (imageUrl && data?.[0]?.id) {
+        await supabase
+          .from('accommodation_images')
+          .insert({
+            accommodation_id: data[0].id,
+            image_url: imageUrl,
+            is_primary: true
+          });
+      }
+
+      Alert.alert('Success', 'Accommodation created successfully');
+      onAccommodationCreated();
+      onClose();
+      resetForm();
+    } catch (error: unknown) {
+      console.error('Creation error:', error);
+      let errorMessage = 'Failed to create accommodation';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const ToggleButton = ({
-    label,
-    value,
-    onPress,
-  }: {
-    label: string;
-    value: boolean;
-    onPress: () => void;
-  }) => (
-    <TouchableOpacity style={styles.toggleContainer} onPress={onPress}>
-      <View style={[styles.checkbox, value && styles.checkboxChecked]}>
-        {value && <Text style={styles.checkmark}>✓</Text>}
-      </View>
-      <Text style={styles.toggleLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      location: '',
+      address: '',
+      pricePerNight: '0',
+      capacity: '1',
+      bedrooms: '1',
+      bathrooms: '1',
+      hasBikeStorage: false,
+      hasBikeRental: false,
+      hasBikeTools: false,
+      hasLaundry: false,
+      hasWifi: false,
+      hasKitchen: false,
+      hasParking: false,
+    });
+    setImage(null);
+  };
 
   return (
     <Modal
@@ -144,193 +248,257 @@ const EditAlojamientoModal: React.FC<CreateAlojamientoModalProps> = ({
       visible={visible}
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalContainer}
-      >
+      <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <ScrollView contentContainerStyle={styles.scrollViewContent}>
             <View style={styles.header}>
-              <Text style={styles.title}>Editar Alojamiento</Text>
+              <Text style={styles.title}>Create New Accommodation</Text>
               <TouchableOpacity onPress={onClose}>
                 <X size={24} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
 
-            {/* Datos básicos */}
+            {/* Image Section */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Accommodation Image</Text>
+              <TouchableOpacity 
+                style={styles.imageUploadButton} 
+                onPress={pickImage}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.imageUploadButtonText}>
+                    {image ? 'Change Image' : 'Select Image'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              
+              {image && (
+                <>
+                  <View style={styles.imagePreviewContainer}>
+                    <Image 
+                      source={{ uri: image }} 
+                      style={styles.imagePreview} 
+                    />
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.removeImageButton} 
+                    onPress={() => setImage(null)}
+                    disabled={isUploading}
+                  >
+                    <Text style={styles.removeImageButtonText}>Remove Image</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+
+            {/* Basic Information Section */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.name}
+                onChangeText={(text) => handleChange('name', text)}
+                placeholder="Accommodation name"
+                placeholderTextColor="#6B7280"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Description *</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={formData.description}
+                onChangeText={(text) => handleChange('description', text)}
+                placeholder="Describe your accommodation..."
+                placeholderTextColor="#6B7280"
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Location *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.location}
+                onChangeText={(text) => handleChange('location', text)}
+                placeholder="City, Country"
+                placeholderTextColor="#6B7280"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Address *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.address}
+                onChangeText={(text) => handleChange('address', text)}
+                placeholder="Street address"
+                placeholderTextColor="#6B7280"
+              />
+            </View>
+
+            {/* Details Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Datos Básicos</Text>
+              <Text style={styles.sectionTitle}>Details</Text>
               
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Nombre *</Text>
+                <Text style={styles.label}>Price per night (USD)</Text>
                 <TextInput
                   style={styles.input}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Nombre del alojamiento"
-                  placeholderTextColor="#6B7280"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Descripción</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Describe tu alojamiento..."
-                  placeholderTextColor="#6B7280"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Ubicación *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={location}
-                  onChangeText={setLocation}
-                  placeholder="Ej. Cancún, México"
-                  placeholderTextColor="#6B7280"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Dirección *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={address}
-                  onChangeText={setAddress}
-                  placeholder="Ej. Calle Principal 123"
-                  placeholderTextColor="#6B7280"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Precio por noche (USD) *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={pricePerNight}
-                  onChangeText={setPricePerNight}
-                  placeholder="Ej. 100"
+                  value={formData.pricePerNight}
+                  onChangeText={(text) => handleChange('pricePerNight', text)}
+                  placeholder="100"
                   placeholderTextColor="#6B7280"
                   keyboardType="numeric"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Capacidad máxima de huéspedes *</Text>
+                <Text style={styles.label}>Maximum guests</Text>
                 <TextInput
                   style={styles.input}
-                  value={capacity}
-                  onChangeText={setCapacity}
-                  placeholder="Ej. 4"
+                  value={formData.capacity}
+                  onChangeText={(text) => handleChange('capacity', text)}
+                  placeholder="4"
                   placeholderTextColor="#6B7280"
                   keyboardType="numeric"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Número de habitaciones *</Text>
+                <Text style={styles.label}>Bedrooms</Text>
                 <TextInput
                   style={styles.input}
-                  value={bedrooms}
-                  onChangeText={setBedrooms}
-                  placeholder="Ej. 2"
+                  value={formData.bedrooms}
+                  onChangeText={(text) => handleChange('bedrooms', text)}
+                  placeholder="2"
                   placeholderTextColor="#6B7280"
                   keyboardType="numeric"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Número de baños *</Text>
+                <Text style={styles.label}>Bathrooms</Text>
                 <TextInput
                   style={styles.input}
-                  value={bathrooms}
-                  onChangeText={setBathrooms}
-                  placeholder="Ej. 1"
+                  value={formData.bathrooms}
+                  onChangeText={(text) => handleChange('bathrooms', text)}
+                  placeholder="1"
                   placeholderTextColor="#6B7280"
                   keyboardType="numeric"
                 />
               </View>
             </View>
 
-            {/* Servicios para ciclistas */}
+            {/* Amenities Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Servicios para Ciclistas</Text>
+              <Text style={styles.sectionTitle}>Amenities</Text>
+              
+              <View style={styles.toggleContainer}>
+                <Switch
+                  value={formData.hasBikeStorage}
+                  onValueChange={(value) => handleChange('hasBikeStorage', value)}
+                  thumbColor={formData.hasBikeStorage ? '#4ADE80' : '#f4f3f4'}
+                  trackColor={{ false: '#6B7280', true: '#4ADE8050' }}
+                />
+                <Text style={styles.toggleLabel}>Bike storage</Text>
+              </View>
 
-              <ToggleButton
-                label="Almacenamiento para bicicletas"
-                value={hasBikeStorage}
-                onPress={() => setHasBikeStorage(!hasBikeStorage)}
-              />
+              <View style={styles.toggleContainer}>
+                <Switch
+                  value={formData.hasBikeRental}
+                  onValueChange={(value) => handleChange('hasBikeRental', value)}
+                  thumbColor={formData.hasBikeRental ? '#4ADE80' : '#f4f3f4'}
+                  trackColor={{ false: '#6B7280', true: '#4ADE8050' }}
+                />
+                <Text style={styles.toggleLabel}>Bike rental</Text>
+              </View>
 
-              <ToggleButton
-                label="Alquiler de bicicletas"
-                value={hasBikeRental}
-                onPress={() => setHasBikeRental(!hasBikeRental)}
-              />
+              <View style={styles.toggleContainer}>
+                <Switch
+                  value={formData.hasBikeTools}
+                  onValueChange={(value) => handleChange('hasBikeTools', value)}
+                  thumbColor={formData.hasBikeTools ? '#4ADE80' : '#f4f3f4'}
+                  trackColor={{ false: '#6B7280', true: '#4ADE8050' }}
+                />
+                <Text style={styles.toggleLabel}>Bike tools</Text>
+              </View>
 
-              <ToggleButton
-                label="Herramientas para bicicletas"
-                value={hasBikeTools}
-                onPress={() => setHasBikeTools(!hasBikeTools)}
-              />
+              <View style={styles.toggleContainer}>
+                <Switch
+                  value={formData.hasLaundry}
+                  onValueChange={(value) => handleChange('hasLaundry', value)}
+                  thumbColor={formData.hasLaundry ? '#4ADE80' : '#f4f3f4'}
+                  trackColor={{ false: '#6B7280', true: '#4ADE8050' }}
+                />
+                <Text style={styles.toggleLabel}>Laundry</Text>
+              </View>
+
+              <View style={styles.toggleContainer}>
+                <Switch
+                  value={formData.hasWifi}
+                  onValueChange={(value) => handleChange('hasWifi', value)}
+                  thumbColor={formData.hasWifi ? '#4ADE80' : '#f4f3f4'}
+                  trackColor={{ false: '#6B7280', true: '#4ADE8050' }}
+                />
+                <Text style={styles.toggleLabel}>WiFi</Text>
+              </View>
+
+              <View style={styles.toggleContainer}>
+                <Switch
+                  value={formData.hasKitchen}
+                  onValueChange={(value) => handleChange('hasKitchen', value)}
+                  thumbColor={formData.hasKitchen ? '#4ADE80' : '#f4f3f4'}
+                  trackColor={{ false: '#6B7280', true: '#4ADE8050' }}
+                />
+                <Text style={styles.toggleLabel}>Kitchen</Text>
+              </View>
+
+              <View style={styles.toggleContainer}>
+                <Switch
+                  value={formData.hasParking}
+                  onValueChange={(value) => handleChange('hasParking', value)}
+                  thumbColor={formData.hasParking ? '#4ADE80' : '#f4f3f4'}
+                  trackColor={{ false: '#6B7280', true: '#4ADE8050' }}
+                />
+                <Text style={styles.toggleLabel}>Parking</Text>
+              </View>
             </View>
 
-            {/* Amenidades Generales */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Amenidades Generales</Text>
-
-              <ToggleButton
-                label="Lavandería"
-                value={hasLaundry}
-                onPress={() => setHasLaundry(!hasLaundry)}
-              />
-
-              <ToggleButton
-                label="WiFi"
-                value={hasWifi}
-                onPress={() => setHasWifi(!hasWifi)}
-              />
-
-              <ToggleButton
-                label="Cocina disponible"
-                value={hasKitchen}
-                onPress={() => setHasKitchen(!hasKitchen)}
-              />
-
-              <ToggleButton
-                label="Estacionamiento"
-                value={hasParking}
-                onPress={() => setHasParking(!hasParking)}
-              />
-            </View>
-
-            {/* Botones de acción */}
+            {/* Action Buttons */}
             <View style={styles.buttonsContainer}>
-              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
               <TouchableOpacity
-                style={styles.createButton}
-                onPress={handleSave}
-                disabled={loading}
+                style={styles.cancelButton}
+                onPress={onClose}
+                disabled={isLoading}
               >
-                <Text style={styles.createButtonText}>
-                  {loading ? 'Guardando...' : 'Guardar Cambios'}
-                </Text>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.createButton, (isLoading || isUploading) && styles.buttonDisabled]}
+                onPress={handleSave}
+                disabled={isLoading || isUploading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={styles.createButtonText}>Create Accommodation</Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
 
-// Estilos
+// Estilos (se mantienen igual)
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
@@ -425,29 +593,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: '#6B7280',
-    borderRadius: 6,
-    marginRight: 12,
-    justifyContent: 'center',
+  toggleLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  imageUploadButton: {
+    backgroundColor: '#374151',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  imageUploadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+  imagePreviewContainer: {
+    marginTop: 10,
     alignItems: 'center',
   },
-  checkboxChecked: {
-    backgroundColor: '#4ADE80',
-    borderColor: '#4ADE80',
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    resizeMode: 'cover',
   },
-  checkmark: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: 'bold',
+  removeImageButton: {
+    backgroundColor: '#EF4444',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
   },
-  toggleLabel: {
+  removeImageButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
   },
 });
 
-export default EditAlojamientoModal;
+export default CreateAlojamientoModal;

@@ -6,6 +6,7 @@ export default function HostLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="accommodations" />
       <Stack.Screen name="bookings" />
+      <Stack.Screen name ="bike"/>
     </Stack>
   );
 }

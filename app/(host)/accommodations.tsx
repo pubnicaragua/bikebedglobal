@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  RefreshControl,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -14,8 +16,19 @@ import { ArrowLeft, Plus, Home, Edit, Eye, MoreVertical } from 'lucide-react-nat
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
-import CreateAccommodationModal from '../../src/components/ui/CreateAlojamientoModal';
+import CreateAlojamientoModal from '../../src/components/ui/CreateAlojamientoModal';
 import EditAlojamientoModal from '../../src/components/ui/EditAlojamientoModal';
+
+interface AccommodationImage {
+  id: string;
+  image_url: string;
+  is_primary: boolean;
+}
+
+interface Booking {
+  id: string;
+  status: string;
+}
 
 interface Accommodation {
   id: string;
@@ -36,19 +49,16 @@ interface Accommodation {
   has_kitchen: boolean;
   has_parking: boolean;
   is_active: boolean;
-  accommodation_images?: Array<{
-    image_url: string;
-    is_primary: boolean;
-  }>;
-  bookings: Array<{
-    id: string;
-    status: string;
-  }>;
+  created_at: string;
+  updated_at: string;
+  accommodation_images: AccommodationImage[];
+  bookings: Booking[];
 }
 
 export default function AccommodationsManagementScreen() {
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedAccommodation, setSelectedAccommodation] = useState<Accommodation | null>(null);
@@ -56,14 +66,18 @@ export default function AccommodationsManagementScreen() {
   const { t } = useI18n();
 
   useEffect(() => {
-    if (user) {
-      fetchAccommodations();
-    }
+    const fetchData = async () => {
+      if (user) {
+        await fetchAccommodations();
+      }
+    };
+    fetchData();
   }, [user]);
 
   const fetchAccommodations = async () => {
     if (!user) return;
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('accommodations')
         .select(`
@@ -73,47 +87,61 @@ export default function AccommodationsManagementScreen() {
         `)
         .eq('host_id', user.id)
         .order('created_at', { ascending: false });
-
+      
       if (error) throw error;
-      setAccommodations(data || []);
+      
+      // Normalizar datos para asegurar imágenes
+      const normalizedData = data?.map(acc => ({
+        ...acc,
+        accommodation_images: acc.accommodation_images?.length > 0 
+          ? acc.accommodation_images 
+          : [{ 
+              id: 'default', 
+              image_url: 'https://via.placeholder.com/400x300?text=No+Image', 
+              is_primary: true 
+            }]
+      })) || [];
+      
+      setAccommodations(normalizedData);
     } catch (error) {
       console.error('Error fetching accommodations:', error);
       Alert.alert('Error', 'No se pudieron cargar los alojamientos');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const handleCreateAccommodation = (newAccommodation: Accommodation) => {
-    setAccommodations([newAccommodation, ...accommodations]);
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchAccommodations();
   };
 
-  const handleUpdateAccommodation = (updatedAccommodation: Accommodation) => {
-    setAccommodations(prev =>
-      prev.map(acc => 
-        acc.id === updatedAccommodation.id ? updatedAccommodation : acc
-      )
-    );
+  const handleCreateSuccess = () => {
+    fetchAccommodations();
+    setShowModal(false);
   };
 
-  const toggleAccommodationStatus = async (
-    accommodationId: string,
-    currentStatus: boolean
-  ) => {
+  const handleUpdateSuccess = () => {
+    fetchAccommodations();
+    setEditModalVisible(false);
+  };
+
+  const toggleAccommodationStatus = async (accommodationId: string, currentStatus: boolean) => {
     try {
       const { error } = await supabase
         .from('accommodations')
-        .update({ is_active: !currentStatus })
+        .update({ is_active: !currentStatus, updated_at: new Date().toISOString() })
         .eq('id', accommodationId);
-
+      
       if (error) throw error;
-
+      
       setAccommodations(prev =>
         prev.map(acc =>
           acc.id === accommodationId ? { ...acc, is_active: !currentStatus } : acc
         )
       );
-
+      
       Alert.alert(
         'Éxito',
         `Alojamiento ${!currentStatus ? 'activado' : 'desactivado'} correctamente`
@@ -130,19 +158,25 @@ export default function AccommodationsManagementScreen() {
   };
 
   const AccommodationCard = ({ accommodation }: { accommodation: Accommodation }) => {
-    const images = accommodation.accommodation_images ?? [];
+    const [imageError, setImageError] = useState(false);
+    const images = accommodation.accommodation_images || [];
     const primaryImage = images.find(img => img.is_primary) || images[0];
-    const activeBookings = accommodation.bookings.filter(b => b.status === 'confirmed').length;
+    const activeBookings = accommodation.bookings?.filter(b => b.status === 'confirmed').length || 0;
 
     return (
       <View style={styles.accommodationCard}>
         <Image
-          source={{
-            uri:
-              primaryImage?.image_url ||
-              'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg',
+          source={{ 
+            uri: imageError || !primaryImage?.image_url 
+              ? 'https://via.placeholder.com/400x300?text=No+Image' 
+              : primaryImage.image_url 
           }}
           style={styles.accommodationImage}
+          resizeMode="cover"
+          onError={() => {
+            console.log('Error loading image:', primaryImage?.image_url);
+            setImageError(true);
+          }}
         />
         <View style={styles.accommodationContent}>
           <View style={styles.accommodationHeader}>
@@ -225,6 +259,7 @@ export default function AccommodationsManagementScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4ADE80" />
           <Text style={styles.loadingText}>Cargando alojamientos...</Text>
         </View>
       </SafeAreaView>
@@ -245,7 +280,18 @@ export default function AccommodationsManagementScreen() {
           <Plus size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#4ADE80']}
+            tintColor="#4ADE80"
+          />
+        }
+      >
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Home size={24} color="#4ADE80" />
@@ -269,8 +315,11 @@ export default function AccommodationsManagementScreen() {
         </View>
         <View style={styles.accommodationsList}>
           {accommodations.length > 0 ? (
-            accommodations.map((accommodation) => (
-              <AccommodationCard key={accommodation.id} accommodation={accommodation} />
+            accommodations.map(accommodation => (
+              <AccommodationCard
+                key={accommodation.id}
+                accommodation={accommodation}
+              />
             ))
           ) : (
             <View style={styles.emptyState}>
@@ -289,21 +338,16 @@ export default function AccommodationsManagementScreen() {
           )}
         </View>
       </ScrollView>
-
-      <CreateAccommodationModal
+      <CreateAlojamientoModal
         visible={showModal}
         onClose={() => setShowModal(false)}
-        onAccommodationCreated={handleCreateAccommodation}
+        onAccommodationCreated={handleCreateSuccess}
       />
-
       <EditAlojamientoModal
         visible={editModalVisible}
         onClose={() => setEditModalVisible(false)}
         alojamiento={selectedAccommodation}
-        onSaveSuccess={() => {
-          setEditModalVisible(false);
-          fetchAccommodations();
-        }}
+        onSaveSuccess={handleUpdateSuccess}
       />
     </SafeAreaView>
   );
@@ -322,19 +366,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#374151',
   },
-  backButton: {
-    marginRight: 16,
+  backButton: { 
+    marginRight: 16 
   },
   title: {
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: 'bold',
     flex: 1,
+    textAlign: 'center',
   },
   addButton: {
     backgroundColor: '#4ADE80',
     borderRadius: 20,
     padding: 8,
+    marginLeft: 16,
   },
   content: {
     flex: 1,
@@ -348,6 +394,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#FFFFFF',
     fontSize: 16,
+    marginTop: 12,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -384,8 +431,8 @@ const styles = StyleSheet.create({
   },
   accommodationImage: {
     width: '100%',
-    height: 150,
-    backgroundColor: '#374151',
+    height: 200,
+    backgroundColor: '#374151', // Fondo por si la imagen no carga
   },
   accommodationContent: {
     padding: 16,
