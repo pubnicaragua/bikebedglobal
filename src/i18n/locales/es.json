@@ -55,7 +55,10 @@
       "popular": "Populares",
       "beach": "Playa",
       "cheap": "Económicos",
-      "expensive": "Costosos"
+      "expensive": "Costosos",
+      "mountain": "Montaña",
+      "road":"Carretera",
+      "city":"Ciudad"
     },
     "sections": {
       "recommended": "Recomendados para ti",

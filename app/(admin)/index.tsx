@@ -9,26 +9,42 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Home, DollarSign, Star, MessageCircle, Calendar, Bike, LogOut } from 'lucide-react-native';
+import { 
+  Home, 
+  DollarSign, 
+  Star, 
+  MessageCircle, 
+  Calendar, 
+  Bike, 
+  LogOut,
+  Users,
+  Map,
+  Bell,
+  Settings
+} from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
 import { LanguageToggle } from '../../src/components/ui/LanguageToggle';
 
-interface HostStats {
-  totalAccommodations: number;
+interface AdminStats {
+  totalUsers: number;
+  activeUsers: number;
+  totalRoutes: number;
+  activeRoutes: number;
   totalBookings: number;
-  totalRevenue: number;
-  averageRating: number;
+  pendingNotifications: number;
   unreadMessages: number;
 }
 
-export default function HostDashboardScreen() {
-  const [stats, setStats] = useState<HostStats>({
-    totalAccommodations: 0,
+export default function AdminDashboardScreen() {
+  const [stats, setStats] = useState<AdminStats>({
+    totalUsers: 0,
+    activeUsers: 0,
+    totalRoutes: 0,
+    activeRoutes: 0,
     totalBookings: 0,
-    totalRevenue: 0,
-    averageRating: 0,
+    pendingNotifications: 0,
     unreadMessages: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -37,7 +53,7 @@ export default function HostDashboardScreen() {
 
   useEffect(() => {
     if (user) {
-      fetchHostStats();
+      fetchAdminStats();
     }
   }, [user]);
 
@@ -59,49 +75,58 @@ export default function HostDashboardScreen() {
     );
   };
 
-  const fetchHostStats = async () => {
+  const fetchAdminStats = async () => {
     if (!user) return;
 
     try {
-      const { count: accommodationsCount } = await supabase
-        .from('accommodations')
+      // Estadísticas de usuarios
+      const { count: totalUsers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: activeUsers } = await supabase
+        .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('host_id', user.id)
         .eq('is_active', true);
 
-      const { data: bookings } = await supabase
+      // Estadísticas de rutas
+      const { count: totalRoutes } = await supabase
+        .from('routes')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: activeRoutes } = await supabase
+        .from('routes')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      // Estadísticas de reservas
+      const { count: totalBookings } = await supabase
         .from('bookings')
-        .select('total_price, status, accommodations!inner(host_id)')
-        .eq('accommodations.host_id', user.id);
+        .select('*', { count: 'exact', head: true });
 
-      const totalRevenue = bookings?.reduce((sum, booking) => {
-        return booking.status === 'confirmed' ? sum + booking.total_price : sum;
-      }, 0) || 0;
+      // Notificaciones pendientes
+      const { count: pendingNotifications } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
 
-      const { data: reviews } = await supabase
-        .from('accommodation_reviews')
-        .select('rating, accommodations!inner(host_id)')
-        .eq('accommodations.host_id', user.id);
-
-      const averageRating = reviews?.length 
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
-        : 0;
-
-      const { count: unreadCount } = await supabase
+      // Mensajes no leídos
+      const { count: unreadMessages } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
-        .eq('recipient_id', user.id)
         .eq('is_read', false);
 
       setStats({
-        totalAccommodations: accommodationsCount || 0,
-        totalBookings: bookings?.length || 0,
-        totalRevenue,
-        averageRating,
-        unreadMessages: unreadCount || 0,
+        totalUsers: totalUsers || 0,
+        activeUsers: activeUsers || 0,
+        totalRoutes: totalRoutes || 0,
+        activeRoutes: activeRoutes || 0,
+        totalBookings: totalBookings || 0,
+        pendingNotifications: pendingNotifications || 0,
+        unreadMessages: unreadMessages || 0,
       });
     } catch (error) {
-      console.error('Error fetching host stats:', error);
+      console.error('Error fetching admin stats:', error);
     } finally {
       setLoading(false);
     }
@@ -141,8 +166,8 @@ export default function HostDashboardScreen() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.headerTextContainer}>
-            <Text style={styles.title}>Panel de Anfitrión</Text>
-            <Text style={styles.subtitle}>Gestiona tus alojamientos y reservas</Text>
+            <Text style={styles.title}>Panel de Administrador</Text>
+            <Text style={styles.subtitle}>Gestión completa de la plataforma</Text>
           </View>
           
           <View style={styles.headerActions}>
@@ -161,10 +186,18 @@ export default function HostDashboardScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.statsGrid}>
           <StatCard
-            icon={Home}
-            title="Alojamientos"
-            value={stats.totalAccommodations}
-            subtitle="activos"
+            icon={Users}
+            title="Usuarios"
+            value={`${stats.activeUsers}/${stats.totalUsers}`}
+            subtitle="activos/totales"
+            color="#3B82F6"
+          />
+          <StatCard
+            icon={Map}
+            title="Rutas"
+            value={`${stats.activeRoutes}/${stats.totalRoutes}`}
+            subtitle="activas/totales"
+            color="#8B5CF6"
           />
           <StatCard
             icon={Calendar}
@@ -174,66 +207,111 @@ export default function HostDashboardScreen() {
             color="#F59E0B"
           />
           <StatCard
-            icon={DollarSign}
-            title="Ingresos"
-            value={`$${stats.totalRevenue.toFixed(0)}`}
-            subtitle="confirmados"
-            color="#10B981"
-          />
-          <StatCard
-            icon={Star}
-            title="Calificación"
-            value={stats.averageRating.toFixed(1)}
-            subtitle="promedio"
-            color="#8B5CF6"
+            icon={Bell}
+            title="Notificaciones"
+            value={stats.pendingNotifications}
+            subtitle="pendientes"
+            color="#EC4899"
           />
         </View>
 
         <View style={styles.quickActions}>
-          <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
+          <Text style={styles.sectionTitle}>Gestión Principal</Text>
+          
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => router.push('/(host)/accommodations')}
+            onPress={() => router.push('/(admin)/users')}
           >
             <View style={styles.actionIcon}>
-              <Home size={20} color="#4ADE80" />
+              <Users size={20} color="#3B82F6" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Gestionar Usuarios</Text>
+              <Text style={styles.actionSubtitle}>Administrar todos los usuarios del sistema</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/(admin)/routes')}
+          >
+            <View style={styles.actionIcon}>
+              <Map size={20} color="#8B5CF6" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Gestionar Rutas</Text>
+              <Text style={styles.actionSubtitle}>Crear y administrar rutas disponibles</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/')}
+          >
+            <View style={styles.actionIcon}>
+              <Bell size={20} color="#EC4899" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Gestionar Notificaciones</Text>
+              <Text style={styles.actionSubtitle}>Enviar y administrar notificaciones</Text>
+            </View>
+            {stats.pendingNotifications > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{stats.pendingNotifications}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/')}
+          >
+            <View style={styles.actionIcon}>
+              <Calendar size={20} color="#F59E0B" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Gestionar Reservas</Text>
+              <Text style={styles.actionSubtitle}>Ver y administrar todas las reservas</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.quickActions}>
+          <Text style={styles.sectionTitle}>Otras Acciones</Text>
+          
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/')}
+          >
+            <View style={styles.actionIcon}>
+              <Home size={20} color="#10B981" />
             </View>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Gestionar Alojamientos</Text>
-              <Text style={styles.actionSubtitle}>Agregar, editar o desactivar propiedades</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard}>
-            <View style={styles.actionIcon}>
-              <Bike size={20} color="#4ADE80" />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Gestionar Bicicletas</Text>
-              <Text style={styles.actionSubtitle}>Administrar tu flota de bicicletas</Text>
+              <Text style={styles.actionSubtitle}>Administrar propiedades registradas</Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => router.push('/(host)/bookings')}
+            onPress={() => router.push('/')}
           >
             <View style={styles.actionIcon}>
-              <Calendar size={20} color="#4ADE80" />
+              <Bike size={20} color="#10B981" />
             </View>
             <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Ver Reservas</Text>
-              <Text style={styles.actionSubtitle}>Revisar y gestionar reservas pendientes</Text>
+              <Text style={styles.actionTitle}>Gestionar Bicicletas</Text>
+              <Text style={styles.actionSubtitle}>Administrar flota de bicicletas</Text>
             </View>
           </TouchableOpacity>
 
           {stats.unreadMessages > 0 && (
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => router.push('/chat')}
+              onPress={() => router.push('/')}
             >
               <View style={styles.actionIcon}>
-                <MessageCircle size={20} color="#EF4444" />
+                <MessageCircle size={20} color="#3B82F6" />
               </View>
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Mensajes</Text>
@@ -246,21 +324,34 @@ export default function HostDashboardScreen() {
               </View>
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/')}
+          >
+            <View style={styles.actionIcon}>
+              <Settings size={20} color="#6B7280" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Configuración del Sistema</Text>
+              <Text style={styles.actionSubtitle}>Ajustes generales de la plataforma</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.recentActivity}>
           <Text style={styles.sectionTitle}>Actividad Reciente</Text>
           <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Nueva reserva recibida</Text>
+            <Text style={styles.activityTitle}>Nuevo usuario registrado</Text>
+            <Text style={styles.activityTime}>Hace 15 minutos</Text>
+          </View>
+          <View style={styles.activityCard}>
+            <Text style={styles.activityTitle}>Nueva ruta creada</Text>
             <Text style={styles.activityTime}>Hace 2 horas</Text>
           </View>
           <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Reseña de 5 estrellas</Text>
+            <Text style={styles.activityTitle}>Reserva cancelada</Text>
             <Text style={styles.activityTime}>Ayer</Text>
-          </View>
-          <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Pago procesado</Text>
-            <Text style={styles.activityTime}>Hace 3 días</Text>
           </View>
         </View>
       </ScrollView>
@@ -291,11 +382,9 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16, // Espacio entre los botones
+    gap: 16,
   },
-  languageToggleContainer: {
-    // Estilos específicos si son necesarios
-  },
+  languageToggleContainer: {},
   signOutButton: {
     padding: 8,
     borderRadius: 8,
@@ -380,6 +469,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    position: 'relative',
   },
   actionIcon: {
     width: 40,
@@ -410,6 +500,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     minWidth: 20,
     alignItems: 'center',
+    position: 'absolute',
+    right: 16,
+    top: 16,
   },
   badgeText: {
     color: '#FFFFFF',

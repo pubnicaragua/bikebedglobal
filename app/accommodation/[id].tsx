@@ -8,11 +8,29 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  TextInput,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, Star, MapPin, Wifi, Car, Utensils, Tv, Users, Bed, Bath } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Heart,
+  Star,
+  MapPin,
+  Wifi,
+  Car,
+  Utensils,
+  Tv,
+  Users,
+  Bed,
+  Bath,
+  Send,
+  Plus,
+  X,
+} from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { Button } from '../../src/components/ui/Button';
@@ -40,10 +58,13 @@ interface AccommodationAmenity {
 
 interface AccommodationReview {
   id: string;
+  booking_id: string;
+  user_id: string;
+  accommodation_id: string;
   rating: number;
   comment: string | null;
   created_at: string;
-  user_id: string;
+  updated_at: string;
   profile?: Profile;
 }
 
@@ -76,11 +97,18 @@ interface Accommodation {
 
 export default function AccommodationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [accommodation, setAccommodation] = useState<Accommodation | null>(null);
+  const [accommodation, setAccommodation] = useState<Accommodation | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewRating, setReviewRating] = useState(0);
+  const [hasBooked, setHasBooked] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -88,6 +116,7 @@ export default function AccommodationDetailScreen() {
       fetchAccommodation();
       if (user) {
         checkIfFavorite();
+        checkIfBooked();
       }
     }
   }, [id, user]);
@@ -96,17 +125,20 @@ export default function AccommodationDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data: accommodationData, error: accommodationError } = await supabase
-        .from('accommodations')
-        .select(`
+
+      const { data: accommodationData, error: accommodationError } =
+        await supabase
+          .from('accommodations')
+          .select(
+            `
           *,
           accommodation_images(*),
           accommodation_amenities(*),
           accommodation_reviews(*)
-        `)
-        .eq('id', id)
-        .single();
+        `
+          )
+          .eq('id', id)
+          .single();
 
       if (accommodationError) throw accommodationError;
       if (!accommodationData) throw new Error('Alojamiento no encontrado');
@@ -119,9 +151,12 @@ export default function AccommodationDetailScreen() {
 
       if (hostError) console.warn('Error fetching host:', hostError);
 
-      const reviewUserIds = accommodationData.accommodation_reviews?.map((r: { user_id: any; }) => r.user_id) || [];
+      const reviewUserIds =
+        accommodationData.accommodation_reviews?.map(
+          (r: { user_id: any }) => r.user_id
+        ) || [];
       let reviewerProfiles: Profile[] = [];
-      
+
       if (reviewUserIds.length > 0) {
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
@@ -131,23 +166,29 @@ export default function AccommodationDetailScreen() {
         if (!profilesError) reviewerProfiles = profilesData || [];
       }
 
-      const normalizedImages = accommodationData.accommodation_images?.length > 0 
-        ? accommodationData.accommodation_images 
-        : [{ 
-            id: 'default', 
-            image_url: 'https://via.placeholder.com/400x300?text=No+Image', 
-            is_primary: true 
-          }];
+      const normalizedImages =
+        accommodationData.accommodation_images?.length > 0
+          ? accommodationData.accommodation_images
+          : [
+              {
+                id: 'default',
+                image_url: 'https://via.placeholder.com/400x300?text=No+Image',
+                is_primary: true,
+              },
+            ];
 
-      const reviewsWithProfiles = accommodationData.accommodation_reviews?.map((review: { user_id: string; }) => ({
-        ...review,
-        profile: reviewerProfiles.find(p => p.id === review.user_id) || {
-          id: review.user_id,
-          first_name: 'Anónimo',
-          last_name: '',
-          avatar_url: ''
-        }
-      })) || [];
+      const reviewsWithProfiles =
+        accommodationData.accommodation_reviews?.map(
+          (review: { user_id: string }) => ({
+            ...review,
+            profile: reviewerProfiles.find((p) => p.id === review.user_id) || {
+              id: review.user_id,
+              first_name: 'Anónimo',
+              last_name: '',
+              avatar_url: '',
+            },
+          })
+        ) || [];
 
       setAccommodation({
         ...accommodationData,
@@ -157,8 +198,8 @@ export default function AccommodationDetailScreen() {
           id: accommodationData.host_id,
           first_name: 'Anfitrión',
           last_name: '',
-          avatar_url: ''
-        }
+          avatar_url: '',
+        },
       });
     } catch (err) {
       console.error('Error fetching accommodation:', err);
@@ -170,7 +211,7 @@ export default function AccommodationDetailScreen() {
 
   const checkIfFavorite = async () => {
     if (!user || !id) return;
-    
+
     try {
       const { data, error } = await supabase
         .from('favorite_accommodations')
@@ -178,11 +219,30 @@ export default function AccommodationDetailScreen() {
         .eq('user_id', user.id)
         .eq('accommodation_id', id)
         .single();
-      
+
       if (error) throw error;
       setIsFavorite(!!data);
     } catch (error) {
       console.error('Error checking favorite:', error);
+    }
+  };
+
+  const checkIfBooked = async () => {
+    if (!user || !id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('accommodation_id', id)
+        .eq('status', 'completed')
+        .single();
+
+      if (error) throw error;
+      setHasBooked(!!data);
+    } catch (error) {
+      console.error('Error checking booking:', error);
     }
   };
 
@@ -200,7 +260,7 @@ export default function AccommodationDetailScreen() {
           .delete()
           .eq('user_id', user.id)
           .eq('accommodation_id', id);
-        
+
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -209,7 +269,7 @@ export default function AccommodationDetailScreen() {
             user_id: user.id,
             accommodation_id: id,
           });
-        
+
         if (error) throw error;
       }
       setIsFavorite(!isFavorite);
@@ -256,17 +316,18 @@ export default function AccommodationDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('reports')
-                .insert({
-                  user_id: user.id,
-                  accommodation_id: id,
-                  report_type: 'inappropriate',
-                  status: 'pending',
-                });
-              
+              const { error } = await supabase.from('reports').insert({
+                user_id: user.id,
+                accommodation_id: id,
+                report_type: 'inappropriate',
+                status: 'pending',
+              });
+
               if (error) throw error;
-              Alert.alert('Reporte enviado', 'Gracias por tu reporte. Revisaremos este contenido.');
+              Alert.alert(
+                'Reporte enviado',
+                'Gracias por tu reporte. Revisaremos este contenido.'
+              );
             } catch (error) {
               console.error('Error submitting report:', error);
               Alert.alert('Error', 'No se pudo enviar el reporte');
@@ -277,9 +338,73 @@ export default function AccommodationDetailScreen() {
     );
   };
 
+  const handleSubmitReview = async () => {
+    if (!user || !id) {
+      Alert.alert('Error', 'Debes iniciar sesión para dejar una reseña');
+      return;
+    }
+
+    if (!hasBooked) {
+      Alert.alert(
+        'Error',
+        'Debes haber completado una reserva en este alojamiento para dejar una reseña'
+      );
+      return;
+    }
+
+    if (reviewRating === 0) {
+      Alert.alert('Error', 'Por favor selecciona una calificación');
+      return;
+    }
+
+    try {
+      setReviewLoading(true);
+
+      // First, find the user's completed booking for this accommodation
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('accommodation_id', id)
+        .eq('status', 'completed')
+        .single();
+
+      if (bookingError || !bookingData) {
+        throw (
+          bookingError || new Error('No se encontró una reserva completada')
+        );
+      }
+
+      const { error } = await supabase.from('accommodation_reviews').insert({
+        booking_id: bookingData.id,
+        user_id: user.id,
+        accommodation_id: id,
+        rating: reviewRating,
+        comment: reviewText || null,
+      });
+
+      if (error) throw error;
+
+      // Refresh the accommodation data to show the new review
+      await fetchAccommodation();
+      setReviewText('');
+      setReviewRating(0);
+      setReviewModalVisible(false);
+      Alert.alert('Éxito', 'Tu reseña ha sido publicada');
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      Alert.alert('Error', 'No se pudo enviar la reseña');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
   const calculateAverageRating = () => {
     if (!accommodation?.accommodation_reviews?.length) return 0;
-    const sum = accommodation.accommodation_reviews.reduce((acc, review) => acc + review.rating, 0);
+    const sum = accommodation.accommodation_reviews.reduce(
+      (acc, review) => acc + review.rating,
+      0
+    );
     return sum / accommodation.accommodation_reviews.length;
   };
 
@@ -298,7 +423,9 @@ export default function AccommodationDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error || 'Alojamiento no encontrado'}</Text>
+          <Text style={styles.errorText}>
+            {error || 'Alojamiento no encontrado'}
+          </Text>
           <Button title="Volver" onPress={() => router.back()} />
         </View>
       </SafeAreaView>
@@ -307,18 +434,49 @@ export default function AccommodationDetailScreen() {
 
   const averageRating = calculateAverageRating();
   const availableAmenities = [
-    { condition: accommodation.has_wifi, icon: <Wifi size={20} color="#4ADE80" />, name: 'WiFi' },
-    { condition: accommodation.has_kitchen, icon: <Utensils size={20} color="#4ADE80" />, name: 'Cocina' },
-    { condition: accommodation.has_parking, icon: <Car size={20} color="#4ADE80" />, name: 'Estacionamiento' },
-    { condition: accommodation.has_bike_storage, icon: <Text>🚴</Text>, name: 'Guardado de bicis' },
-    { condition: accommodation.has_bike_rental, icon: <Text>🚲</Text>, name: 'Alquiler de bicis' },
-    { condition: accommodation.has_bike_tools, icon: <Text>🛠️</Text>, name: 'Herramientas' },
-    { condition: accommodation.has_laundry, icon: <Text>🧺</Text>, name: 'Lavandería' },
-  ].filter(amenity => amenity.condition);
+    {
+      condition: accommodation.has_wifi,
+      icon: <Wifi size={20} color="#4ADE80" />,
+      name: 'WiFi',
+    },
+    {
+      condition: accommodation.has_kitchen,
+      icon: <Utensils size={20} color="#4ADE80" />,
+      name: 'Cocina',
+    },
+    {
+      condition: accommodation.has_parking,
+      icon: <Car size={20} color="#4ADE80" />,
+      name: 'Estacionamiento',
+    },
+    {
+      condition: accommodation.has_bike_storage,
+      icon: <Text>🚴</Text>,
+      name: 'Guardado de bicis',
+    },
+    {
+      condition: accommodation.has_bike_rental,
+      icon: <Text>🚲</Text>,
+      name: 'Alquiler de bicis',
+    },
+    {
+      condition: accommodation.has_bike_tools,
+      icon: <Text>🛠️</Text>,
+      name: 'Herramientas',
+    },
+    {
+      condition: accommodation.has_laundry,
+      icon: <Text>🧺</Text>,
+      name: 'Lavandería',
+    },
+  ].filter((amenity) => amenity.condition);
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Carrusel de imágenes */}
         <View style={styles.imageContainer}>
           <ScrollView
@@ -339,16 +497,22 @@ export default function AccommodationDetailScreen() {
               />
             ))}
           </ScrollView>
-          
+
           <View style={styles.headerControls}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
               <ArrowLeft size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.favoriteButton} onPress={toggleFavorite}>
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={toggleFavorite}
+            >
               <Heart
                 size={24}
-                color={isFavorite ? "#EF4444" : "#FFFFFF"}
-                fill={isFavorite ? "#EF4444" : "transparent"}
+                color={isFavorite ? '#EF4444' : '#FFFFFF'}
+                fill={isFavorite ? '#EF4444' : 'transparent'}
               />
             </TouchableOpacity>
           </View>
@@ -392,7 +556,9 @@ export default function AccommodationDetailScreen() {
           <View style={styles.propertyInfo}>
             <View style={styles.infoItem}>
               <Users size={16} color="#9CA3AF" />
-              <Text style={styles.infoText}>{accommodation.capacity} huéspedes</Text>
+              <Text style={styles.infoText}>
+                {accommodation.capacity} huéspedes
+              </Text>
             </View>
             <View style={styles.infoItem}>
               <Bed size={16} color="#9CA3AF" />
@@ -400,28 +566,35 @@ export default function AccommodationDetailScreen() {
             </View>
             <View style={styles.infoItem}>
               <Bath size={16} color="#9CA3AF" />
-              <Text style={styles.infoText}>{accommodation.bathrooms} baños</Text>
+              <Text style={styles.infoText}>
+                {accommodation.bathrooms} baños
+              </Text>
             </View>
           </View>
 
           {/* Sección del anfitrión */}
-          <TouchableOpacity 
-            style={styles.hostSection} 
+          <TouchableOpacity
+            style={styles.hostSection}
             onPress={handleContactHost}
             activeOpacity={0.8}
           >
             <View style={styles.hostInfo}>
               <Image
                 source={{
-                  uri: accommodation.host.avatar_url || 'https://via.placeholder.com/150?text=Host',
+                  uri:
+                    accommodation.host.avatar_url ||
+                    'https://via.placeholder.com/150?text=Host',
                 }}
                 style={styles.hostAvatar}
               />
               <View>
                 <Text style={styles.hostName}>
-                  Anfitrión: {accommodation.host.first_name} {accommodation.host.last_name}
+                  Anfitrión: {accommodation.host.first_name}{' '}
+                  {accommodation.host.last_name}
                 </Text>
-                <Text style={styles.contactHostText}>Contactar al anfitrión</Text>
+                <Text style={styles.contactHostText}>
+                  Contactar al anfitrión
+                </Text>
               </View>
             </View>
           </TouchableOpacity>
@@ -444,46 +617,66 @@ export default function AccommodationDetailScreen() {
                 ))}
               </View>
             ) : (
-              <Text style={styles.noAmenitiesText}>No hay servicios registrados</Text>
+              <Text style={styles.noAmenitiesText}>
+                No hay servicios registrados
+              </Text>
             )}
           </View>
 
           {/* Reseñas */}
-          {accommodation.accommodation_reviews.length > 0 && (
-            <View style={styles.reviewsSection}>
+          <View style={styles.reviewsSection}>
+            <View style={styles.reviewsHeader}>
               <Text style={styles.sectionTitle}>Reseñas</Text>
-              {accommodation.accommodation_reviews.slice(0, 2).map((review) => (
-                <View key={review.id} style={styles.reviewItem}>
-                  <View style={styles.reviewHeader}>
-                    <Image
-                      source={{
-                        uri: review.profile?.avatar_url || 'https://via.placeholder.com/150?text=User',
-                      }}
-                      style={styles.reviewerAvatar}
-                    />
-                    <View>
-                      <Text style={styles.reviewerName}>
-                        {review.profile?.first_name || 'Anónimo'}
-                      </Text>
-                      <View style={styles.reviewRating}>
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={16}
-                            color={i < review.rating ? "#4ADE80" : "#9CA3AF"}
-                            fill={i < review.rating ? "#4ADE80" : "transparent"}
-                          />
-                        ))}
+                <TouchableOpacity
+                  style={styles.addReviewButton}
+                  onPress={() => setReviewModalVisible(true)}
+                >
+                  <Plus size={20} color="#FFFFFF" />
+                  <Text style={styles.addReviewButtonText}>Añadir reseña</Text>
+                </TouchableOpacity>
+            </View>
+
+            {accommodation.accommodation_reviews.length > 0 ? (
+              <>
+                {accommodation.accommodation_reviews.map((review) => (
+                  <View key={review.id} style={styles.reviewItem}>
+                    <View style={styles.reviewHeader}>
+                      <Image
+                        source={{
+                          uri:
+                            review.profile?.avatar_url ||
+                            'https://via.placeholder.com/150?text=User',
+                        }}
+                        style={styles.reviewerAvatar}
+                      />
+                      <View>
+                        <Text style={styles.reviewerName}>
+                          {review.profile?.first_name || 'Anónimo'}
+                        </Text>
+                        <View style={styles.reviewRating}>
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              size={16}
+                              color={i < review.rating ? '#4ADE80' : '#9CA3AF'}
+                              fill={
+                                i < review.rating ? '#4ADE80' : 'transparent'
+                              }
+                            />
+                          ))}
+                        </View>
                       </View>
                     </View>
+                    {review.comment && (
+                      <Text style={styles.reviewText}>{review.comment}</Text>
+                    )}
                   </View>
-                  {review.comment && (
-                    <Text style={styles.reviewText}>{review.comment}</Text>
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
+                ))}
+              </>
+            ) : (
+              <Text style={styles.noReviewsText}>No hay reseñas aún</Text>
+            )}
+          </View>
 
           {/* Ubicación */}
           <View style={styles.locationSection}>
@@ -497,6 +690,65 @@ export default function AccommodationDetailScreen() {
         </View>
       </ScrollView>
 
+      {/* Modal para reseñas */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={reviewModalVisible}
+        onRequestClose={() => {
+          setReviewModalVisible(!reviewModalVisible);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Escribe tu reseña</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setReviewModalVisible(false)}
+              >
+                <X size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalRating}>
+              <Text style={styles.ratingLabel}>Calificación:</Text>
+              <View style={styles.starsContainer}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity
+                    key={star}
+                    onPress={() => setReviewRating(star)}
+                  >
+                    <Star
+                      size={32}
+                      color={star <= reviewRating ? '#4ADE80' : '#9CA3AF'}
+                      fill={star <= reviewRating ? '#4ADE80' : 'transparent'}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Escribe tu reseña (opcional)"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={4}
+              value={reviewText}
+              onChangeText={setReviewText}
+            />
+
+            <Button
+              title={reviewLoading ? 'Enviando...' : 'Enviar reseña'}
+              onPress={handleSubmitReview}
+              disabled={reviewLoading || reviewRating === 0}
+              style={styles.submitButton}
+            />
+          </View>
+        </View>
+      </Modal>
+
       {/* Barra inferior de reserva */}
       <View style={styles.bottomBar}>
         <View style={styles.priceInfo}>
@@ -504,10 +756,7 @@ export default function AccommodationDetailScreen() {
           <Text style={styles.priceUnit}>/noche</Text>
         </View>
         <View style={styles.buttonsContainer}>
-          <TouchableOpacity 
-            style={styles.reportButton}
-            onPress={handleReport}
-          >
+          <TouchableOpacity style={styles.reportButton} onPress={handleReport}>
             <Text style={styles.reportButtonText}>Reportar</Text>
           </TouchableOpacity>
           <Button
@@ -727,8 +976,30 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     marginBottom: 24,
   },
+  reviewsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addReviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  addReviewButtonText: {
+    color: '#4ADE80',
+    marginLeft: 8,
+    fontWeight: '600',
+  },
   reviewItem: {
-    marginBottom: 20,
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
   },
   reviewHeader: {
     flexDirection: 'row',
@@ -756,6 +1027,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
+  noReviewsText: {
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginVertical: 16,
+  },
   locationSection: {
     marginBottom: 100,
   },
@@ -775,6 +1052,56 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 16,
     marginTop: 8,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: '90%',
+    backgroundColor: '#1F2937',
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalRating: {
+    marginBottom: 20,
+  },
+  ratingLabel: {
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  modalInput: {
+    backgroundColor: '#374151',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 100,
+    marginBottom: 20,
+    textAlignVertical: 'top',
+  },
+  submitButton: {
+    width: '100%',
   },
   bottomBar: {
     flexDirection: 'row',

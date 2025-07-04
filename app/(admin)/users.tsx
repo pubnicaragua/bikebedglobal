@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Users, Shield, Ban, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Users, Shield, Ban, CheckCircle} from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
@@ -23,19 +23,21 @@ interface User {
   avatar_url: string | null;
   role: 'user' | 'host' | 'admin';
   created_at: string;
+  is_active?: boolean;
+  phone?: string | null;
 }
 
 export default function UsersManagementScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
   const { t } = useI18n();
 
   useEffect(() => {
-    if (user) {
+    if (currentUser) {
       fetchUsers();
     }
-  }, [user]);
+  }, [currentUser]);
 
   const fetchUsers = async () => {
     try {
@@ -74,6 +76,59 @@ export default function UsersManagementScreen() {
     }
   };
 
+  const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: !currentStatus })
+        .eq('id', userId);
+
+      if (error) throw error;
+      
+      setUsers(prev => prev.map(u => 
+        u.id === userId ? { ...u, is_active: !currentStatus } : u
+      ));
+      
+      Alert.alert(
+        'Éxito', 
+        `Usuario ${!currentStatus ? 'activado' : 'desactivado'} correctamente`
+      );
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      Alert.alert('Error', 'No se pudo cambiar el estado del usuario');
+    }
+  };
+
+  const deleteUser = async (userId: string) => {
+    try {
+      Alert.alert(
+        'Confirmar eliminación',
+        '¿Estás seguro de que quieres eliminar este usuario? Esta acción no se puede deshacer.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Eliminar',
+            style: 'destructive',
+            onPress: async () => {
+              const { error } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('id', userId);
+
+              if (error) throw error;
+              
+              setUsers(prev => prev.filter(u => u.id !== userId));
+              Alert.alert('Éxito', 'Usuario eliminado correctamente');
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      Alert.alert('Error', 'No se pudo eliminar el usuario');
+    }
+  };
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin':
@@ -85,6 +140,10 @@ export default function UsersManagementScreen() {
       default:
         return '#9CA3AF';
     }
+  };
+
+  const getStatusColor = (isActive: boolean | undefined) => {
+    return isActive ? '#10B981' : '#EF4444';
   };
 
   const getRoleText = (role: string) => {
@@ -100,8 +159,22 @@ export default function UsersManagementScreen() {
     }
   };
 
+  const getStatusText = (isActive: boolean | undefined) => {
+    return isActive ? 'Activo' : 'Inactivo';
+  };
+
+  const navigateToUserDetail = (user: User) => {
+    router.push({
+      pathname: '/user/[id]',
+      params: { id: user.id },
+    });
+  };
+
   const UserCard = ({ user: userItem }: { user: User }) => (
-    <View style={styles.userCard}>
+    <TouchableOpacity 
+      style={styles.userCard}
+      onPress={() => navigateToUserDetail(userItem)}
+    >
       <View style={styles.userInfo}>
         <Image
           source={{
@@ -114,32 +187,17 @@ export default function UsersManagementScreen() {
             {userItem.first_name} {userItem.last_name}
           </Text>
           <Text style={styles.userEmail}>{userItem.email}</Text>
-          <View style={[styles.roleBadge, { backgroundColor: getRoleColor(userItem.role) }]}>
-            <Text style={styles.roleText}>{getRoleText(userItem.role)}</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(userItem.is_active) }]}>
+              <Text style={styles.statusText}>{getStatusText(userItem.is_active)}</Text>
+            </View>
+            <View style={[styles.roleBadge, { backgroundColor: getRoleColor(userItem.role) }]}>
+              <Text style={styles.roleText}>{getRoleText(userItem.role)}</Text>
+            </View>
           </View>
         </View>
       </View>
-      
-      <View style={styles.userActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => {
-            Alert.alert(
-              'Cambiar Rol',
-              'Selecciona el nuevo rol para este usuario',
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Usuario', onPress: () => updateUserRole(userItem.id, 'user') },
-                { text: 'Anfitrión', onPress: () => updateUserRole(userItem.id, 'host') },
-                { text: 'Admin', onPress: () => updateUserRole(userItem.id, 'admin') },
-              ]
-            );
-          }}
-        >
-          <Shield size={16} color="#4ADE80" />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
@@ -288,11 +346,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
   },
+  statusRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   roleBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
   },
   roleText: {
     color: '#000000',
@@ -301,11 +372,18 @@ const styles = StyleSheet.create({
   },
   userActions: {
     flexDirection: 'row',
+    gap: 8,
   },
   actionButton: {
-    backgroundColor: '#374151',
     borderRadius: 20,
     padding: 8,
-    marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editButton: {
+    backgroundColor: '#1E40AF',
+  },
+  deleteButton: {
+    backgroundColor: '#7F1D1D',
   },
 });

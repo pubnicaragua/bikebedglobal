@@ -20,8 +20,6 @@ export default function RootLayout() {
         <Stack.Screen name="booking/create" />
         <Stack.Screen name="chat/index" />
         <Stack.Screen name="+not-found" />
-        <Stack.Screen name='support'/>
-        <Stack.Screen name="/payment"/>
       </Stack>
       <StatusBar style="light" backgroundColor="#111827" />
     </>

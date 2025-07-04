@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ type Accommodation = {
   reviewCount: number;
   imageUrl: string;
   isFavorite: boolean;
+  type?: string;
 };
 
 type Route = {
@@ -101,21 +102,83 @@ export default function HomeScreen() {
   const { t } = useI18n();
   const { user } = useAuth();
 
+  // Filtros unificados
   const filters = [
     { key: 'all', label: t('home.filters.all') },
-    { key: 'nearby', label: t('home.filters.nearby') },
     { key: 'popular', label: t('home.filters.popular') },
-    { key: 'beach', label: t('home.filters.beach') },
     { key: 'cheap', label: t('home.filters.cheap') },
     { key: 'expensive', label: t('home.filters.expensive') },
+    { key: 'beach', label: t('home.filters.beach') },
+    { key: 'mountain', label: t('home.filters.mountain') },
+    { key: 'road', label: t('home.filters.road') },
+    { key: 'hybrid', label: t('home.filters.hybrid') },
+    { key: 'electric', label: t('home.filters.electric') },
+    { key: 'city', label: t('home.filters.city') },
   ];
+
+  // Datos filtrados - cuando el filtro es 'all' muestra todo sin filtrar
+  const filteredAccommodations = useMemo(() => {
+    if (selectedFilter === 'all') return accommodations;
+    
+    let result = [...accommodations];
+    
+    switch (selectedFilter) {
+      case 'popular':
+        return result.sort((a, b) => b.rating - a.rating);
+      case 'cheap':
+        return result.sort((a, b) => parseFloat(a.price.replace('$', '')) - parseFloat(b.price.replace('$', '')));
+      case 'expensive':
+        return result.sort((a, b) => parseFloat(b.price.replace('$', '')) - parseFloat(a.price.replace('$', '')));
+      case 'beach':
+        return result.filter(acc => 
+          acc.location.toLowerCase().includes('playa') || 
+          acc.name.toLowerCase().includes('playa')
+        );
+      default:
+        return result;
+    }
+  }, [accommodations, selectedFilter]);
+
+  const filteredRoutes = useMemo(() => {
+    if (selectedFilter === 'all') return routes;
+    
+    let result = [...routes];
+    
+    switch (selectedFilter) {
+      case 'popular':
+        return result.sort((a, b) => b.rating - a.rating);
+      default:
+        return result;
+    }
+  }, [routes, selectedFilter]);
+
+  const filteredBikes = useMemo(() => {
+    if (selectedFilter === 'all') return bikes;
+    
+    let result = [...bikes];
+    
+    switch (selectedFilter) {
+      case 'mountain':
+        return result.filter(bike => bike.type.toLowerCase() === 'mountain');
+      case 'road':
+        return result.filter(bike => bike.type.toLowerCase() === 'road');
+      case 'hybrid':
+        return result.filter(bike => bike.type.toLowerCase() === 'hybrid');
+      case 'electric':
+        return result.filter(bike => bike.type.toLowerCase() === 'electric');
+      case 'city':
+        return result.filter(bike => bike.type.toLowerCase() === 'city');
+      default:
+        return result;
+    }
+  }, [bikes, selectedFilter]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         
-        // Obtener alojamientos
+        // Obtener alojamientos (corregido el nombre de la tabla)
         const { data: accommodationsData, error: accommodationsError } = await supabase
           .from('accommodations')
           .select(`
@@ -241,15 +304,15 @@ export default function HomeScreen() {
 
         if (bikesError) throw bikesError;
 
-        // Obtener bicicletas favoritas del usuario (usaremos la misma tabla de favoritos)
+        // Obtener bicicletas favoritas del usuario
         const { data: favoriteBikes, error: favoriteBikesError } = await supabase
-          .from('favorite_accommodations') // Podrías crear una tabla específica para bikes después
-          .select('accommodation_id')
+          .from('favorite_bikes')
+          .select('bike_id')
           .eq('user_id', user?.id);
 
         if (favoriteBikesError) throw favoriteBikesError;
 
-        const favoriteBikeIds = favoriteBikes?.map(fav => fav.accommodation_id) || [];
+        const favoriteBikeIds = favoriteBikes?.map(fav => fav.bike_id) || [];
 
         const processedBikes = (bikesData as unknown as BikeData[])?.map(bike => {
           const location = bike.accommodations?.location || 'Ubicación no especificada';
@@ -258,12 +321,12 @@ export default function HomeScreen() {
           return {
             id: bike.id,
             name: `${bike.bike_type}`,
-            type: bike.bike_type,
+            type: bike.bike_type.toLowerCase(), // Convertir a minúsculas para coincidir con los filtros
             size: bike.bike_size || 'Talla estándar',
             price: `$${bike.price_per_day}/día`,
             location: location,
-            imageUrl: 'https://via.placeholder.com/300', // Imagen genérica de bicicleta
-            isFavorite: favoriteBikeIds.includes(bike.accommodation_id || '')
+            imageUrl: 'https://via.placeholder.com/300',
+            isFavorite: favoriteBikeIds.includes(bike.id)
           };
         }) || [];
 
@@ -302,7 +365,6 @@ export default function HomeScreen() {
 
     try {
       if (accommodation.isFavorite) {
-        // Eliminar de favoritos
         const { error } = await supabase
           .from('favorite_accommodations')
           .delete()
@@ -311,7 +373,6 @@ export default function HomeScreen() {
 
         if (error) throw error;
       } else {
-        // Agregar a favoritos
         const { error } = await supabase
           .from('favorite_accommodations')
           .insert([
@@ -324,7 +385,6 @@ export default function HomeScreen() {
         if (error) throw error;
       }
 
-      // Actualizar estado local
       setAccommodations(prev => prev.map(item => 
         item.id === accommodation.id 
           ? { ...item, isFavorite: !item.isFavorite } 
@@ -341,7 +401,6 @@ export default function HomeScreen() {
 
     try {
       if (route.isFavorite) {
-        // Eliminar de favoritos
         const { error } = await supabase
           .from('favorite_routes')
           .delete()
@@ -350,7 +409,6 @@ export default function HomeScreen() {
 
         if (error) throw error;
       } else {
-        // Agregar a favoritos
         const { error } = await supabase
           .from('favorite_routes')
           .insert([
@@ -363,7 +421,6 @@ export default function HomeScreen() {
         if (error) throw error;
       }
 
-      // Actualizar estado local
       setRoutes(prev => prev.map(item => 
         item.id === route.id 
           ? { ...item, isFavorite: !item.isFavorite } 
@@ -379,23 +436,21 @@ export default function HomeScreen() {
     if (!user?.id) return;
 
     try {
-      // Aquí deberías implementar la lógica para favoritos de bicicletas
-      // Por ahora usaremos la misma tabla de favoritos de alojamientos como ejemplo
       if (bike.isFavorite) {
         const { error } = await supabase
-          .from('favorite_accommodations')
+          .from('favorite_bikes')
           .delete()
           .eq('user_id', user.id)
-          .eq('accommodation_id', bike.id);
+          .eq('bike_id', bike.id);
 
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('favorite_accommodations')
+          .from('favorite_bikes')
           .insert([
             { 
               user_id: user.id, 
-              accommodation_id: bike.id 
+              bike_id: bike.id 
             }
           ]);
 
@@ -448,8 +503,8 @@ export default function HomeScreen() {
       title={item.name}
       subtitle={`${item.type} - ${item.size}`}
       price={item.price}
-      rating={0} // No hay rating para bicicletas en el diseño actual
-      reviewCount={0} // No hay reviews para bicicletas en el diseño actual
+      rating={0}
+      reviewCount={0}
       onPress={() => handleBikePress(item)}
       onFavoritePress={() => toggleFavoriteBike(item)}
       isFavorite={item.isFavorite}
@@ -485,22 +540,27 @@ export default function HomeScreen() {
           />
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtersContainer}
-          contentContainerStyle={styles.filtersContent}
-        >
-          {filters.map((filter) => (
-            <FilterChip
-              key={filter.key}
-              label={filter.label}
-              selected={selectedFilter === filter.key}
-              onPress={() => setSelectedFilter(filter.key)}
-            />
-          ))}
-        </ScrollView>
+        {/* Filtros unificados */}
+        <View style={styles.filterSection}>
+          <Text style={styles.filterSectionTitle}>{t('home.filters.title')}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filtersContainer}
+            contentContainerStyle={styles.filtersContent}
+          >
+            {filters.map((filter) => (
+              <FilterChip
+                key={filter.key}
+                label={filter.label}
+                selected={selectedFilter === filter.key}
+                onPress={() => setSelectedFilter(filter.key)}
+              />
+            ))}
+          </ScrollView>
+        </View>
 
+        {/* Sección de alojamientos recomendados */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
@@ -513,7 +573,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={accommodations}
+            data={filteredAccommodations}
             renderItem={renderAccommodationCard}
             keyExtractor={(item) => item.id}
             horizontal
@@ -523,6 +583,7 @@ export default function HomeScreen() {
           />
         </View>
 
+        {/* Sección de rutas */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
@@ -535,7 +596,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={routes}
+            data={filteredRoutes}
             renderItem={renderRouteCard}
             keyExtractor={(item) => item.id}
             horizontal
@@ -545,29 +606,7 @@ export default function HomeScreen() {
           />
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {t('home.sections.services')}
-            </Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>
-                {t('home.sections.seeAll')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={accommodations.slice(0, 1)}
-            renderItem={renderAccommodationCard}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-            ListEmptyComponent={() => renderEmptyComponent(t('home.noServices'))}
-          />
-        </View>
-
-        {/* Nuevo contenedor para bicicletas de alquiler */}
+        {/* Sección de bicicletas de alquiler */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
@@ -580,7 +619,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={bikes}
+            data={filteredBikes}
             renderItem={renderBikeCard}
             keyExtractor={(item) => item.id}
             horizontal
@@ -606,11 +645,22 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 8,
   },
-  filtersContainer: {
+  filterSection: {
     marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  filterSectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  filtersContainer: {
+    marginBottom: 8,
   },
   filtersContent: {
     paddingHorizontal: 16,
+    gap: 8,
   },
   section: {
     marginBottom: 24,
@@ -635,10 +685,10 @@ const styles = StyleSheet.create({
   horizontalList: {
     paddingHorizontal: 16,
     minHeight: 200,
+    gap: 16,
   },
   card: {
     width: 280,
-    marginRight: 16,
   },
   loadingContainer: {
     flex: 1,

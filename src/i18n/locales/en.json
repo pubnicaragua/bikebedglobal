@@ -55,7 +55,10 @@
       "popular": "Popular",
       "beach": "Beach",
       "cheap": "Cheap",
-      "expensive": "Expensive"
+      "expensive": "Expensive",
+      "mountain": "Mountain",
+      "road":"Road",
+      "city":"City"
     },
     "sections": {
       "recommended": "Recommended for you",
