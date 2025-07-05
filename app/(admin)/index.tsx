@@ -274,6 +274,20 @@ export default function AdminDashboardScreen() {
               <Text style={styles.actionSubtitle}>Ver y administrar todas las reservas</Text>
             </View>
           </TouchableOpacity>
+
+          {/* Nuevo botón para Reportes Financieros */}
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/')}
+          >
+            <View style={styles.actionIcon}>
+              <DollarSign size={20} color="#10B981" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Reportes Financieros</Text>
+              <Text style={styles.actionSubtitle}>Ver reportes de ingresos y ganancias</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.quickActions}>

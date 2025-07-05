@@ -17,7 +17,6 @@ import { useI18n } from '../../src/hooks/useI18n';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 
-// Tipos para los datos
 type Accommodation = {
   id: string;
   name: string;
@@ -27,7 +26,15 @@ type Accommodation = {
   reviewCount: number;
   imageUrl: string;
   isFavorite: boolean;
-  type?: string;
+  services: {
+    wifi: boolean;
+    kitchen: boolean;
+    bikeStorage: boolean;
+    bikeRental: boolean;
+    bikeTools: boolean;
+    laundry: boolean;
+    parking: boolean;
+  };
 };
 
 type Route = {
@@ -39,6 +46,7 @@ type Route = {
   reviewCount: number;
   imageUrl: string;
   isFavorite: boolean;
+  difficulty: string;
 };
 
 type Bike = {
@@ -52,46 +60,6 @@ type Bike = {
   isFavorite: boolean;
 };
 
-type AccommodationData = {
-  id: string;
-  name: string;
-  location: string;
-  price_per_night: number;
-  accommodation_images: Array<{
-    image_url: string;
-    is_primary: boolean;
-  }>;
-  accommodation_reviews: Array<{
-    rating: number;
-  }>;
-};
-
-type RouteData = {
-  id: string;
-  name: string;
-  start_location: string;
-  route_images: Array<{
-    image_url: string;
-    is_primary: boolean;
-  }>;
-  route_reviews: Array<{
-    rating: number;
-  }>;
-};
-
-type BikeData = {
-  id: string;
-  bike_type: string;
-  bike_size: string | null;
-  price_per_day: number;
-  is_available: boolean;
-  accommodation_id: string | null;
-  accommodations: {
-    name: string;
-    location: string;
-  } | null;
-};
-
 export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
@@ -102,7 +70,6 @@ export default function HomeScreen() {
   const { t } = useI18n();
   const { user } = useAuth();
 
-  // Filtros unificados
   const filters = [
     { key: 'all', label: t('home.filters.all') },
     { key: 'popular', label: t('home.filters.popular') },
@@ -110,17 +77,24 @@ export default function HomeScreen() {
     { key: 'expensive', label: t('home.filters.expensive') },
     { key: 'beach', label: t('home.filters.beach') },
     { key: 'mountain', label: t('home.filters.mountain') },
+    { key: 'easy', label: t('route.difficultyEasy') },
+    { key: 'moderate', label: t('route.difficultyModerate') },
+    { key: 'hard', label: t('route.difficultyHard') },
+    { key: 'wifi', label: 'WiFi' },
+    { key: 'kitchen', label: t('home.filters.kitchen') },
+    { key: 'bikeStorage', label: t('home.filters.bikeStorage') },
+    { key: 'bikeRental', label: t('home.filters.bikeRental') },
+    { key: 'laundry', label: t('home.filters.laundry') },
+    { key: 'parking', label: t('home.filters.parking') },
     { key: 'road', label: t('home.filters.road') },
     { key: 'hybrid', label: t('home.filters.hybrid') },
     { key: 'electric', label: t('home.filters.electric') },
-    { key: 'city', label: t('home.filters.city') },
   ];
 
-  // Datos filtrados - cuando el filtro es 'all' muestra todo sin filtrar
   const filteredAccommodations = useMemo(() => {
-    if (selectedFilter === 'all') return accommodations;
-    
     let result = [...accommodations];
+    
+    if (selectedFilter === 'all') return result;
     
     switch (selectedFilter) {
       case 'popular':
@@ -134,40 +108,73 @@ export default function HomeScreen() {
           acc.location.toLowerCase().includes('playa') || 
           acc.name.toLowerCase().includes('playa')
         );
+      case 'mountain':
+        return result.filter(acc => 
+          acc.location.toLowerCase().includes('montaña') || 
+          acc.name.toLowerCase().includes('montaña')
+        );
+      case 'wifi':
+        return result.filter(acc => acc.services.wifi);
+      case 'kitchen':
+        return result.filter(acc => acc.services.kitchen);
+      case 'bikeStorage':
+        return result.filter(acc => acc.services.bikeStorage);
+      case 'bikeRental':
+        return result.filter(acc => acc.services.bikeRental);
+      case 'laundry':
+        return result.filter(acc => acc.services.laundry);
+      case 'parking':
+        return result.filter(acc => acc.services.parking);
       default:
         return result;
     }
   }, [accommodations, selectedFilter]);
 
   const filteredRoutes = useMemo(() => {
-    if (selectedFilter === 'all') return routes;
-    
     let result = [...routes];
+    
+    if (selectedFilter === 'all') return result;
     
     switch (selectedFilter) {
       case 'popular':
         return result.sort((a, b) => b.rating - a.rating);
+      case 'beach':
+        return result.filter(route => 
+          route.location.toLowerCase().includes('playa') || 
+          route.name.toLowerCase().includes('playa')
+        );
+      case 'mountain':
+        return result.filter(route => 
+          route.location.toLowerCase().includes('montaña') || 
+          route.name.toLowerCase().includes('montaña')
+        );
+      case 'easy':
+        return result.filter(route => route.difficulty === 'easy');
+      case 'moderate':
+        return result.filter(route => route.difficulty === 'moderate');
+      case 'hard':
+        return result.filter(route => route.difficulty === 'hard');
+      case 'road':
+        return result.filter(route => route.difficulty === 'easy');
       default:
         return result;
     }
   }, [routes, selectedFilter]);
 
   const filteredBikes = useMemo(() => {
-    if (selectedFilter === 'all') return bikes;
-    
     let result = [...bikes];
     
+    if (selectedFilter === 'all') return result;
+    
     switch (selectedFilter) {
-      case 'mountain':
-        return result.filter(bike => bike.type.toLowerCase() === 'mountain');
       case 'road':
         return result.filter(bike => bike.type.toLowerCase() === 'road');
       case 'hybrid':
         return result.filter(bike => bike.type.toLowerCase() === 'hybrid');
       case 'electric':
         return result.filter(bike => bike.type.toLowerCase() === 'electric');
-      case 'city':
-        return result.filter(bike => bike.type.toLowerCase() === 'city');
+      case 'bikeRental':
+        return result;
       default:
         return result;
     }
@@ -178,7 +185,6 @@ export default function HomeScreen() {
       try {
         setLoading(true);
         
-        // Obtener alojamientos (corregido el nombre de la tabla)
         const { data: accommodationsData, error: accommodationsError } = await supabase
           .from('accommodations')
           .select(`
@@ -186,6 +192,12 @@ export default function HomeScreen() {
             name,
             location,
             price_per_night,
+            has_wifi,
+            has_kitchen,
+            has_bike_storage,
+            has_bike_rental,
+            has_laundry,
+            has_parking,
             accommodation_images (
               image_url,
               is_primary
@@ -199,7 +211,6 @@ export default function HomeScreen() {
 
         if (accommodationsError) throw accommodationsError;
 
-        // Obtener favoritos del usuario
         const { data: favoriteAccommodations, error: favoritesError } = await supabase
           .from('favorite_accommodations')
           .select('accommodation_id')
@@ -209,7 +220,7 @@ export default function HomeScreen() {
 
         const favoriteIds = favoriteAccommodations?.map(fav => fav.accommodation_id) || [];
 
-        const processedAccommodations = (accommodationsData as AccommodationData[])?.map(acc => {
+        const processedAccommodations = (accommodationsData || []).map(acc => {
           const primaryImage = acc.accommodation_images?.find(img => img.is_primary) || 
                              acc.accommodation_images?.[0];
           const reviews = acc.accommodation_reviews || [];
@@ -225,19 +236,28 @@ export default function HomeScreen() {
             rating: avgRating,
             reviewCount: reviews.length,
             imageUrl: primaryImage?.image_url || 'https://via.placeholder.com/300',
-            isFavorite: favoriteIds.includes(acc.id)
+            isFavorite: favoriteIds.includes(acc.id),
+            services: {
+              wifi: acc.has_wifi,
+              kitchen: acc.has_kitchen,
+              bikeStorage: acc.has_bike_storage,
+              bikeRental: acc.has_bike_rental,
+              bikeTools: false,
+              laundry: acc.has_laundry,
+              parking: acc.has_parking
+            }
           };
-        }) || [];
+        });
 
         setAccommodations(processedAccommodations);
 
-        // Obtener rutas
         const { data: routesData, error: routesError } = await supabase
           .from('routes')
           .select(`
             id,
             name,
             start_location,
+            difficulty,
             route_images (
               image_url,
               is_primary
@@ -251,7 +271,6 @@ export default function HomeScreen() {
 
         if (routesError) throw routesError;
 
-        // Obtener rutas favoritas del usuario
         const { data: favoriteRoutes, error: favoriteRoutesError } = await supabase
           .from('favorite_routes')
           .select('route_id')
@@ -261,7 +280,7 @@ export default function HomeScreen() {
 
         const favoriteRouteIds = favoriteRoutes?.map(fav => fav.route_id) || [];
 
-        const processedRoutes = (routesData as RouteData[])?.map(route => {
+        const processedRoutes = (routesData || []).map(route => {
           const primaryImage = route.route_images?.find(img => img.is_primary) || 
                              route.route_images?.[0];
           const reviews = route.route_reviews || [];
@@ -273,17 +292,17 @@ export default function HomeScreen() {
             id: route.id,
             name: route.name,
             location: route.start_location,
-            type: 'Ruta turística',
+            type: t('route.touristRoute'),
+            difficulty: route.difficulty,
             rating: avgRating,
             reviewCount: reviews.length,
             imageUrl: primaryImage?.image_url || 'https://via.placeholder.com/300',
             isFavorite: favoriteRouteIds.includes(route.id)
           };
-        }) || [];
+        });
 
         setRoutes(processedRoutes);
 
-        // Obtener bicicletas para alquiler
         const { data: bikesData, error: bikesError } = await supabase
           .from('bike_rentals')
           .select(`
@@ -292,8 +311,6 @@ export default function HomeScreen() {
             bike_size,
             price_per_day,
             is_available,
-            host_id,
-            accommodation_id,
             accommodations (
               name,
               location
@@ -304,7 +321,6 @@ export default function HomeScreen() {
 
         if (bikesError) throw bikesError;
 
-        // Obtener bicicletas favoritas del usuario
         const { data: favoriteBikes, error: favoriteBikesError } = await supabase
           .from('favorite_bikes')
           .select('bike_id')
@@ -314,21 +330,23 @@ export default function HomeScreen() {
 
         const favoriteBikeIds = favoriteBikes?.map(fav => fav.bike_id) || [];
 
-        const processedBikes = (bikesData as unknown as BikeData[])?.map(bike => {
-          const location = bike.accommodations?.location || 'Ubicación no especificada';
-          const accommodationName = bike.accommodations?.name || 'Alojamiento asociado';
+        const processedBikes = (bikesData || []).map(bike => {
+          const accommodation = bike.accommodations && bike.accommodations.length > 0 
+            ? bike.accommodations[0] 
+            : null;
+          const location = accommodation?.location || t('common.unknownLocation');
 
           return {
             id: bike.id,
             name: `${bike.bike_type}`,
-            type: bike.bike_type.toLowerCase(), // Convertir a minúsculas para coincidir con los filtros
-            size: bike.bike_size || 'Talla estándar',
-            price: `$${bike.price_per_day}/día`,
+            type: bike.bike_type.toLowerCase(),
+            size: bike.bike_size || t('bike.defaultSize'),
+            price: `$${bike.price_per_day}/${t('common.perDay')}`,
             location: location,
             imageUrl: 'https://via.placeholder.com/300',
             isFavorite: favoriteBikeIds.includes(bike.id)
           };
-        }) || [];
+        });
 
         setBikes(processedBikes);
 
@@ -342,7 +360,7 @@ export default function HomeScreen() {
     if (user?.id) {
       fetchData();
     }
-  }, [user?.id]);
+  }, [user?.id, t]);
 
   const handleLocationPress = () => {
     console.log('Location picker pressed');
@@ -483,11 +501,20 @@ export default function HomeScreen() {
     />
   );
 
-  const renderRouteCard = ({ item }: { item: Route }) => (
+const renderRouteCard = ({ item }: { item: Route }) => {
+  // Primero obtenemos la dificultad formateada
+  const difficultyKey = item.difficulty 
+    ? `route.difficulty${item.difficulty.charAt(0).toUpperCase() + item.difficulty.slice(1)}`
+    : 'route.difficultyUnknown';
+  
+  // Luego creamos el subtítulo
+  const subtitle = `${item.location} (${t(difficultyKey)})`;
+
+  return (
     <Card
       imageUrl={item.imageUrl}
       title={item.name}
-      subtitle={item.location}
+      subtitle={subtitle}
       rating={item.rating}
       reviewCount={item.reviewCount}
       onPress={() => handleRoutePress(item)}
@@ -496,7 +523,7 @@ export default function HomeScreen() {
       style={styles.card}
     />
   );
-
+};
   const renderBikeCard = ({ item }: { item: Bike }) => (
     <Card
       imageUrl={item.imageUrl}
@@ -540,7 +567,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Filtros unificados */}
         <View style={styles.filterSection}>
           <Text style={styles.filterSectionTitle}>{t('home.filters.title')}</Text>
           <ScrollView
@@ -560,7 +586,6 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
 
-        {/* Sección de alojamientos recomendados */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
@@ -583,7 +608,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Sección de rutas */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
@@ -606,7 +630,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Sección de bicicletas de alquiler */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>

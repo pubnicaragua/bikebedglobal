@@ -50,6 +50,7 @@
     "noServices": "No se encontraron servicios",
     "noBikesAvailable": "No hay bicicletas disponibles",
     "filters": {
+      "title": "Filtros",
       "all": "Todos",
       "nearby": "Cercanos",
       "popular": "Populares",
@@ -57,8 +58,19 @@
       "cheap": "Económicos",
       "expensive": "Costosos",
       "mountain": "Montaña",
-      "road":"Carretera",
-      "city":"Ciudad"
+      "road": "Carretera",
+      "city": "Ciudad",
+      "kitchen": "Cocina",
+      "bikeStorage": "Almacenamiento para bicis",
+      "bikeRental": "Alquiler de bicis",
+      "laundry": "Lavandería",
+      "parking": "Estacionamiento",
+      "hybrid": "Híbrida",
+      "electric": "Eléctrica",
+      "wifi": "WiFi",
+      "easy": "Fácil",
+      "moderate": "Moderado",
+      "hard": "Difícil"
     },
     "sections": {
       "recommended": "Recomendados para ti",
@@ -248,6 +260,10 @@
   },
   "route": {
     "difficulty": "Dificultad",
+    "difficultyEasy": "Fácil",
+    "difficultyModerate": "Moderado",
+    "difficultyHard": "Difícil",
+    "difficultyUnknown": "Desconocida",
     "distance": "Distancia",
     "elevation": "Elevación",
     "estimatedTime": "Tiempo estimado",
@@ -257,6 +273,9 @@
     "reviews": "Reseñas",
     "save": "Guardar",
     "touristRoute": "Ruta turística"
+  },
+  "bike": {
+    "defaultSize": "Talla estándar"
   },
   "common": {
     "save": "Guardar",
@@ -284,7 +303,9 @@
     "list": "Lista",
     "grid": "Cuadrícula",
     "remove": "Eliminar",
-    "pay": "Pagar"
+    "pay": "Pagar",
+    "perDay": "día",
+    "unknownLocation": "Ubicación desconocida"
   },
   "navigation": {
     "home": "Inicio",
