@@ -185,6 +185,7 @@ export default function HomeScreen() {
       try {
         setLoading(true);
         
+        // Fetch accommodations
         const { data: accommodationsData, error: accommodationsError } = await supabase
           .from('accommodations')
           .select(`
@@ -221,9 +222,10 @@ export default function HomeScreen() {
         const favoriteIds = favoriteAccommodations?.map(fav => fav.accommodation_id) || [];
 
         const processedAccommodations = (accommodationsData || []).map(acc => {
-          const primaryImage = acc.accommodation_images?.find(img => img.is_primary) || 
-                             acc.accommodation_images?.[0];
-          const reviews = acc.accommodation_reviews || [];
+          const primaryImage = Array.isArray(acc.accommodation_images) 
+            ? acc.accommodation_images.find(img => img.is_primary) || acc.accommodation_images[0]
+            : null;
+          const reviews = Array.isArray(acc.accommodation_reviews) ? acc.accommodation_reviews : [];
           const avgRating = reviews.length > 0 
             ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
             : 0;
@@ -251,6 +253,7 @@ export default function HomeScreen() {
 
         setAccommodations(processedAccommodations);
 
+        // Fetch routes
         const { data: routesData, error: routesError } = await supabase
           .from('routes')
           .select(`
@@ -281,9 +284,10 @@ export default function HomeScreen() {
         const favoriteRouteIds = favoriteRoutes?.map(fav => fav.route_id) || [];
 
         const processedRoutes = (routesData || []).map(route => {
-          const primaryImage = route.route_images?.find(img => img.is_primary) || 
-                             route.route_images?.[0];
-          const reviews = route.route_reviews || [];
+          const primaryImage = Array.isArray(route.route_images) 
+            ? route.route_images.find(img => img.is_primary) || route.route_images[0]
+            : null;
+          const reviews = Array.isArray(route.route_reviews) ? route.route_reviews : [];
           const avgRating = reviews.length > 0 
             ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
             : 0;
@@ -303,6 +307,7 @@ export default function HomeScreen() {
 
         setRoutes(processedRoutes);
 
+        // Fetch bikes
         const { data: bikesData, error: bikesError } = await supabase
           .from('bike_rentals')
           .select(`
@@ -312,7 +317,6 @@ export default function HomeScreen() {
             price_per_day,
             is_available,
             accommodations (
-              name,
               location
             )
           `)
@@ -321,24 +325,30 @@ export default function HomeScreen() {
 
         if (bikesError) throw bikesError;
 
-        const { data: favoriteBikes, error: favoriteBikesError } = await supabase
-          .from('favorite_bikes')
-          .select('bike_id')
-          .eq('user_id', user?.id);
+        // Fetch favorite bikes (with error handling)
+        let favoriteBikeIds: string[] = [];
+        try {
+          const { data: favoriteBikes, error: favoriteBikesError } = await supabase
+            .from('favorite_bikes')
+            .select('bike_id')
+            .eq('user_id', user?.id);
 
-        if (favoriteBikesError) throw favoriteBikesError;
-
-        const favoriteBikeIds = favoriteBikes?.map(fav => fav.bike_id) || [];
+          if (!favoriteBikesError && favoriteBikes) {
+            favoriteBikeIds = favoriteBikes.map(fav => fav.bike_id);
+          }
+        } catch (e) {
+          console.warn('Could not fetch favorite bikes:', e);
+        }
 
         const processedBikes = (bikesData || []).map(bike => {
-          const accommodation = bike.accommodations && bike.accommodations.length > 0 
-            ? bike.accommodations[0] 
+          const accommodation = bike.accommodations && typeof bike.accommodations === 'object' && !Array.isArray(bike.accommodations)
+            ? bike.accommodations
             : null;
           const location = accommodation?.location || t('common.unknownLocation');
 
           return {
             id: bike.id,
-            name: `${bike.bike_type}`,
+            name: bike.bike_type,
             type: bike.bike_type.toLowerCase(),
             size: bike.bike_size || t('bike.defaultSize'),
             price: `$${bike.price_per_day}/${t('common.perDay')}`,
@@ -487,56 +497,61 @@ export default function HomeScreen() {
   };
 
   const renderAccommodationCard = ({ item }: { item: Accommodation }) => (
-    <Card
-      imageUrl={item.imageUrl}
-      title={item.name}
-      subtitle={item.location}
-      price={`${item.price}/${t('accommodation.perNight')}`}
-      rating={item.rating}
-      reviewCount={item.reviewCount}
-      onPress={() => handleAccommodationPress(item)}
-      onFavoritePress={() => toggleFavoriteAccommodation(item)}
-      isFavorite={item.isFavorite}
-      style={styles.card}
-    />
+    <View style={styles.cardContainer}>
+      <Card
+        imageUrl={item.imageUrl}
+        title={item.name}
+        subtitle={item.location}
+        price={`${item.price}/${t('accommodation.perNight')}`}
+        rating={item.rating}
+        reviewCount={item.reviewCount}
+        onPress={() => handleAccommodationPress(item)}
+        onFavoritePress={() => toggleFavoriteAccommodation(item)}
+        isFavorite={item.isFavorite}
+        style={styles.card}
+      />
+    </View>
   );
 
-const renderRouteCard = ({ item }: { item: Route }) => {
-  // Primero obtenemos la dificultad formateada
-  const difficultyKey = item.difficulty 
-    ? `route.difficulty${item.difficulty.charAt(0).toUpperCase() + item.difficulty.slice(1)}`
-    : 'route.difficultyUnknown';
-  
-  // Luego creamos el subtítulo
-  const subtitle = `${item.location} (${t(difficultyKey)})`;
+  const renderRouteCard = ({ item }: { item: Route }) => {
+    const difficultyKey = item.difficulty 
+      ? `route.difficulty${item.difficulty.charAt(0).toUpperCase() + item.difficulty.slice(1)}`
+      : 'route.difficultyUnknown';
+    
+    const subtitle = `${item.location} (${t(difficultyKey)})`;
 
-  return (
-    <Card
-      imageUrl={item.imageUrl}
-      title={item.name}
-      subtitle={subtitle}
-      rating={item.rating}
-      reviewCount={item.reviewCount}
-      onPress={() => handleRoutePress(item)}
-      onFavoritePress={() => toggleFavoriteRoute(item)}
-      isFavorite={item.isFavorite}
-      style={styles.card}
-    />
-  );
-};
+    return (
+      <View style={styles.cardContainer}>
+        <Card
+          imageUrl={item.imageUrl}
+          title={item.name}
+          subtitle={subtitle}
+          rating={item.rating}
+          reviewCount={item.reviewCount}
+          onPress={() => handleRoutePress(item)}
+          onFavoritePress={() => toggleFavoriteRoute(item)}
+          isFavorite={item.isFavorite}
+          style={styles.card}
+        />
+      </View>
+    );
+  };
+
   const renderBikeCard = ({ item }: { item: Bike }) => (
-    <Card
-      imageUrl={item.imageUrl}
-      title={item.name}
-      subtitle={`${item.type} - ${item.size}`}
-      price={item.price}
-      rating={0}
-      reviewCount={0}
-      onPress={() => handleBikePress(item)}
-      onFavoritePress={() => toggleFavoriteBike(item)}
-      isFavorite={item.isFavorite}
-      style={styles.card}
-    />
+    <View style={styles.cardContainer}>
+      <Card
+        imageUrl={item.imageUrl}
+        title={item.name}
+        subtitle={`${item.type} - ${item.size}`}
+        price={item.price}
+        rating={0}
+        reviewCount={0}
+        onPress={() => handleBikePress(item)}
+        onFavoritePress={() => toggleFavoriteBike(item)}
+        isFavorite={item.isFavorite}
+        style={styles.card}
+      />
+    </View>
   );
 
   const renderEmptyComponent = (message: string) => (
@@ -710,8 +725,12 @@ const styles = StyleSheet.create({
     minHeight: 200,
     gap: 16,
   },
-  card: {
+  cardContainer: {
     width: 280,
+    marginRight: 16,
+  },
+  card: {
+    width: '100%',
   },
   loadingContainer: {
     flex: 1,

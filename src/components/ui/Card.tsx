@@ -35,49 +35,68 @@ export const Card: React.FC<CardProps> = ({
   style,
 }) => {
   return (
-    <TouchableOpacity
-      style={[styles.container, style]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <View style={styles.imageContainer}>
-        <Image source={{ uri: imageUrl }} style={styles.image} />
-        {onFavoritePress && (
-          <TouchableOpacity
-            style={styles.favoriteButton}
-            onPress={onFavoritePress}
-          >
-            <Heart
-              size={20}
-              color={isFavorite ? '#EF4444' : '#FFFFFF'}
-              fill={isFavorite ? '#EF4444' : 'transparent'}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
-      <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
-        {subtitle && (
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {subtitle}
-          </Text>
-        )}
-        <View style={styles.bottomRow}>
-          {rating && (
-            <View style={styles.ratingContainer}>
-              <Star size={14} color="#4ADE80" fill="#4ADE80" />
-              <Text style={styles.rating}>{rating.toFixed(1)}</Text>
-              {reviewCount && (
-                <Text style={styles.reviewCount}>({reviewCount})</Text>
-              )}
-            </View>
+    <View style={[styles.container, style]}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.8}
+        style={styles.touchableArea}
+      >
+        <View style={styles.imageContainer}>
+          <Image source={{ uri: imageUrl }} style={styles.image} />
+          {onFavoritePress && (
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onFavoritePress();
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Heart
+                size={20}
+                color={isFavorite ? '#EF4444' : '#FFFFFF'}
+                fill={isFavorite ? '#EF4444' : 'transparent'}
+              />
+            </TouchableOpacity>
           )}
-          {price && <Text style={styles.price}>{price}</Text>}
         </View>
-      </View>
-    </TouchableOpacity>
+        
+        <View style={styles.content}>
+          {/* Todos los textos están correctamente envueltos en componentes Text */}
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+          
+          {subtitle && (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          )}
+          
+          <View style={styles.bottomRow}>
+            {rating !== undefined && (
+              <View style={styles.ratingContainer}>
+                <Star size={14} color="#4ADE80" fill="#4ADE80" />
+                <Text style={styles.rating}>
+                  {rating.toFixed(1)}
+                </Text>
+                {reviewCount !== undefined && (
+                  <Text style={styles.reviewCount}>
+                    ({reviewCount})
+                  </Text>
+                )}
+              </View>
+            )}
+            
+            {price && (
+              <Text style={styles.price}>
+                {price}
+              </Text>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    </View>
   );
 };
 
@@ -88,12 +107,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 16,
   },
+  touchableArea: {
+    flex: 1,
+  },
   imageContainer: {
     position: 'relative',
+    aspectRatio: 16/9,
   },
   image: {
     width: '100%',
-    height: 200,
+    height: '100%',
     backgroundColor: '#374151',
   },
   favoriteButton: {
