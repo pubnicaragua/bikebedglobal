@@ -135,7 +135,7 @@ export default function ProfileScreen() {
     {
       icon: Search,
       title: 'Consultar historial de pago',
-      onPress: () => router.push('/profile'),
+      onPress: () => router.push('/payHistory/[id]'),
     },
     {
       icon: AlertTriangle,

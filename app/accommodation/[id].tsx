@@ -30,10 +30,14 @@ import {
   Send,
   Plus,
   X,
+  MessageSquare,
 } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { Button } from '../../src/components/ui/Button';
+// Importa ResennaModal si lo vas a usar como un componente separado,
+// pero la lógica de la modal de reseña está ahora en este archivo.
+// import ResennaModal from '../../src/components/ui/ResennaModal'; 
 
 const { width } = Dimensions.get('window');
 
@@ -56,6 +60,16 @@ interface AccommodationAmenity {
   amenity_type: string;
 }
 
+interface ReviewResponse {
+  id: string;
+  review_id: string;
+  responder_id: string;
+  response_text: string;
+  created_at: string;
+  updated_at: string;
+  profile?: Profile;
+}
+
 interface AccommodationReview {
   id: string;
   booking_id: string;
@@ -66,6 +80,8 @@ interface AccommodationReview {
   created_at: string;
   updated_at: string;
   profile?: Profile;
+  responses?: ReviewResponse[];
+  showResponses?: boolean;
 }
 
 interface Accommodation {
@@ -97,9 +113,7 @@ interface Accommodation {
 
 export default function AccommodationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [accommodation, setAccommodation] = useState<Accommodation | null>(
-    null
-  );
+  const [accommodation, setAccommodation] = useState<Accommodation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -109,6 +123,8 @@ export default function AccommodationDetailScreen() {
   const [hasBooked, setHasBooked] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [responseTexts, setResponseTexts] = useState<Record<string, string>>({});
+  const [responseLoading, setResponseLoading] = useState<Record<string, boolean>>({});
   const { user } = useAuth();
 
   useEffect(() => {
@@ -126,19 +142,11 @@ export default function AccommodationDetailScreen() {
       setLoading(true);
       setError(null);
 
-      const { data: accommodationData, error: accommodationError } =
-        await supabase
-          .from('accommodations')
-          .select(
-            `
-          *,
-          accommodation_images(*),
-          accommodation_amenities(*),
-          accommodation_reviews(*)
-        `
-          )
-          .eq('id', id)
-          .single();
+      const { data: accommodationData, error: accommodationError } = await supabase
+        .from('accommodations')
+        .select('*, accommodation_images(*), accommodation_amenities(*), accommodation_reviews(*)')
+        .eq('id', id)
+        .single();
 
       if (accommodationError) throw accommodationError;
       if (!accommodationData) throw new Error('Alojamiento no encontrado');
@@ -151,10 +159,14 @@ export default function AccommodationDetailScreen() {
 
       if (hostError) console.warn('Error fetching host:', hostError);
 
-      const reviewUserIds =
-        accommodationData.accommodation_reviews?.map(
-          (r: { user_id: any }) => r.user_id
-        ) || [];
+      const { data: reviewsWithResponses, error: reviewsError } = await supabase
+        .from('accommodation_reviews')
+        .select('*, review_responses(*, profiles:responder_id(id, first_name, last_name, avatar_url))')
+        .eq('accommodation_id', id);
+
+      if (reviewsError) throw reviewsError;
+
+      const reviewUserIds = reviewsWithResponses?.map((r) => r.user_id) || [];
       let reviewerProfiles: Profile[] = [];
 
       if (reviewUserIds.length > 0) {
@@ -166,34 +178,34 @@ export default function AccommodationDetailScreen() {
         if (!profilesError) reviewerProfiles = profilesData || [];
       }
 
-      const normalizedImages =
-        accommodationData.accommodation_images?.length > 0
-          ? accommodationData.accommodation_images
-          : [
-              {
-                id: 'default',
-                image_url: 'https://via.placeholder.com/400x300?text=No+Image',
-                is_primary: true,
-              },
-            ];
+      const normalizedImages = accommodationData.accommodation_images?.length > 0
+        ? accommodationData.accommodation_images
+        : [{ id: 'default', image_url: 'https://via.placeholder.com/400x300?text=No+Image', is_primary: true }];
 
-      const reviewsWithProfiles =
-        accommodationData.accommodation_reviews?.map(
-          (review: { user_id: string }) => ({
-            ...review,
-            profile: reviewerProfiles.find((p) => p.id === review.user_id) || {
-              id: review.user_id,
-              first_name: 'Anónimo',
-              last_name: '',
-              avatar_url: '',
-            },
-          })
-        ) || [];
+      const reviewsWithProfilesAndResponses = reviewsWithResponses?.map((review) => ({
+        ...review,
+        profile: reviewerProfiles.find((p) => p.id === review.user_id) || {
+          id: review.user_id,
+          first_name: 'Anónimo',
+          last_name: '',
+          avatar_url: '',
+        },
+        responses: review.review_responses?.map((response: { profiles: any; responder_id: any; }) => ({
+          ...response,
+          profile: response.profiles || {
+            id: response.responder_id,
+            first_name: 'Anónimo',
+            last_name: '',
+            avatar_url: '',
+          },
+        })) || [],
+        showResponses: false,
+      })) || [];
 
       setAccommodation({
         ...accommodationData,
         accommodation_images: normalizedImages,
-        accommodation_reviews: reviewsWithProfiles,
+        accommodation_reviews: reviewsWithProfilesAndResponses,
         host: hostData || {
           id: accommodationData.host_id,
           first_name: 'Anfitrión',
@@ -220,7 +232,7 @@ export default function AccommodationDetailScreen() {
         .eq('accommodation_id', id)
         .single();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error;
       setIsFavorite(!!data);
     } catch (error) {
       console.error('Error checking favorite:', error);
@@ -231,18 +243,20 @@ export default function AccommodationDetailScreen() {
     if (!user || !id) return;
 
     try {
+      // Busca si el usuario tiene al menos una reserva "completed" para este alojamiento
       const { data, error } = await supabase
         .from('bookings')
         .select('id')
         .eq('user_id', user.id)
         .eq('accommodation_id', id)
         .eq('status', 'completed')
-        .single();
+        .limit(1); // Limita a 1 para mayor eficiencia, solo necesitamos saber si existe
 
       if (error) throw error;
-      setHasBooked(!!data);
+      setHasBooked(data && data.length > 0);
     } catch (error) {
       console.error('Error checking booking:', error);
+      setHasBooked(false);
     }
   };
 
@@ -338,64 +352,113 @@ export default function AccommodationDetailScreen() {
     );
   };
 
-  const handleSubmitReview = async () => {
-    if (!user || !id) {
-      Alert.alert('Error', 'Debes iniciar sesión para dejar una reseña');
-      return;
-    }
+  const toggleReviewResponses = (reviewId: string) => {
+    setAccommodation((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        accommodation_reviews: prev.accommodation_reviews.map((review) => {
+          if (review.id === reviewId) {
+            return { ...review, showResponses: !review.showResponses };
+          }
+          return review;
+        }),
+      };
+    });
+  };
 
-    if (!hasBooked) {
-      Alert.alert(
-        'Error',
-        'Debes haber completado una reserva en este alojamiento para dejar una reseña'
-      );
-      return;
-    }
-
-    if (reviewRating === 0) {
-      Alert.alert('Error', 'Por favor selecciona una calificación');
+  const handleCreateReview = async () => {
+    if (!user || !id || reviewRating === 0) {
+      Alert.alert('Error', 'Por favor, selecciona una calificación para tu reseña.');
       return;
     }
 
     try {
       setReviewLoading(true);
 
-      // First, find the user's completed booking for this accommodation
+      // 1. Verificar si el usuario ya publicó una reseña para este alojamiento
+      const { data: existingReview, error: reviewError } = await supabase
+        .from('accommodation_reviews')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('accommodation_id', id)
+        .maybeSingle();
+
+      if (reviewError) throw reviewError;
+      if (existingReview) {
+        Alert.alert(
+          'Error',
+          'Ya has publicado una reseña para este alojamiento.'
+        );
+        return;
+      }
+
+      // 2. Verificar si el usuario ha completado una reserva para este alojamiento
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .select('id')
         .eq('user_id', user.id)
         .eq('accommodation_id', id)
         .eq('status', 'completed')
-        .single();
+        .maybeSingle();
 
-      if (bookingError || !bookingData) {
-        throw (
-          bookingError || new Error('No se encontró una reserva completada')
+      if (bookingError) throw bookingError;
+      if (!bookingData) {
+        Alert.alert(
+          'Error',
+          'Debes haber completado una reserva para dejar una reseña.'
         );
+        return;
       }
 
+      // 3. Insertar la reseña en la base de datos
       const { error } = await supabase.from('accommodation_reviews').insert({
-        booking_id: bookingData.id,
+        booking_id: bookingData.id, // Usar el ID de la reserva completada
         user_id: user.id,
         accommodation_id: id,
         rating: reviewRating,
-        comment: reviewText || null,
+        comment: reviewText || null, // Guardar null si el comentario está vacío
       });
 
       if (error) throw error;
 
-      // Refresh the accommodation data to show the new review
+      // 4. Si la inserción fue exitosa, recargar los datos del alojamiento
       await fetchAccommodation();
-      setReviewText('');
-      setReviewRating(0);
-      setReviewModalVisible(false);
-      Alert.alert('Éxito', 'Tu reseña ha sido publicada');
-    } catch (error) {
-      console.error('Error submitting review:', error);
-      Alert.alert('Error', 'No se pudo enviar la reseña');
+      setReviewModalVisible(false); // Cerrar la modal
+      setReviewText(''); // Limpiar el texto
+      setReviewRating(0); // Resetear la calificación
+      Alert.alert('Éxito', 'Tu reseña ha sido publicada.');
+    } catch (error: any) { // Usar 'any' para manejar el error de Supabase
+      console.error('Error al crear reseña:', error.message);
+      Alert.alert('Error', 'No se pudo publicar la reseña: ' + error.message);
     } finally {
       setReviewLoading(false);
+    }
+  };
+
+
+  const handleSubmitResponse = async (reviewId: string) => {
+    if (!user || !responseTexts[reviewId]?.trim()) return;
+
+    try {
+      setResponseLoading((prev) => ({ ...prev, [reviewId]: true }));
+
+      const { error } = await supabase.from('review_responses').insert({
+        review_id: reviewId,
+        responder_id: user.id,
+        response_text: responseTexts[reviewId],
+      });
+
+      if (error) throw error;
+
+      await fetchAccommodation();
+      setResponseTexts((prev) => ({ ...prev, [reviewId]: '' }));
+      Alert.alert('Éxito', 'Tu respuesta ha sido publicada');
+    } catch (error) {
+      console.error('Error submitting response:', error);
+      Alert.alert('Error', 'No se pudo enviar la respuesta');
+    } finally {
+      setResponseLoading((prev) => ({ ...prev, [reviewId]: false }));
     }
   };
 
@@ -451,22 +514,22 @@ export default function AccommodationDetailScreen() {
     },
     {
       condition: accommodation.has_bike_storage,
-      icon: <Text>🚴</Text>,
+      icon: <Text style={{ fontSize: 20 }}>🚴</Text>, // Usar Text y estilo para emojis
       name: 'Guardado de bicis',
     },
     {
       condition: accommodation.has_bike_rental,
-      icon: <Text>🚲</Text>,
+      icon: <Text style={{ fontSize: 20 }}>🚲</Text>, // Usar Text y estilo para emojis
       name: 'Alquiler de bicis',
     },
     {
       condition: accommodation.has_bike_tools,
-      icon: <Text>🛠️</Text>,
+      icon: <Text style={{ fontSize: 20 }}>🛠️</Text>, // Usar Text y estilo para emojis
       name: 'Herramientas',
     },
     {
       condition: accommodation.has_laundry,
-      icon: <Text>🧺</Text>,
+      icon: <Text style={{ fontSize: 20 }}>🧺</Text>, // Usar Text y estilo para emojis
       name: 'Lavandería',
     },
   ].filter((amenity) => amenity.condition);
@@ -625,13 +688,14 @@ export default function AccommodationDetailScreen() {
 
           {/* Reseñas */}
           <View style={styles.reviewsSection}>
+            {/* Contenedor del título de reseñas y el botón */}
             <View style={styles.reviewsHeader}>
               <Text style={styles.sectionTitle}>Reseñas</Text>
                 <TouchableOpacity
                   style={styles.addReviewButton}
                   onPress={() => setReviewModalVisible(true)}
                 >
-                  <Plus size={20} color="#FFFFFF" />
+                  <Plus size={20} color="#4ADE80" />
                   <Text style={styles.addReviewButtonText}>Añadir reseña</Text>
                 </TouchableOpacity>
             </View>
@@ -640,7 +704,7 @@ export default function AccommodationDetailScreen() {
               <>
                 {accommodation.accommodation_reviews.map((review) => (
                   <View key={review.id} style={styles.reviewItem}>
-                    <View style={styles.reviewHeader}>
+                    <View style={styles.reviewHeaderContent}>
                       <Image
                         source={{
                           uri:
@@ -649,7 +713,7 @@ export default function AccommodationDetailScreen() {
                         }}
                         style={styles.reviewerAvatar}
                       />
-                      <View>
+                      <View style={styles.reviewContent}>
                         <Text style={styles.reviewerName}>
                           {review.profile?.first_name || 'Anónimo'}
                         </Text>
@@ -665,16 +729,103 @@ export default function AccommodationDetailScreen() {
                             />
                           ))}
                         </View>
+                        {review.comment && (
+                          <Text style={styles.reviewText}>
+                            {review.comment}
+                          </Text>
+                        )}
                       </View>
+
+                      {review.responses && review.responses.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => toggleReviewResponses(review.id)}
+                          style={styles.toggleResponsesButton}
+                        >
+                          <MessageSquare size={20} color="#4ADE80" />
+                          <Text style={styles.toggleResponsesText}>
+                            {review.responses.length}{' '}
+                            {review.responses.length === 1
+                              ? 'respuesta'
+                              : 'respuestas'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
-                    {review.comment && (
-                      <Text style={styles.reviewText}>{review.comment}</Text>
+
+                    {review.showResponses &&
+                      review.responses &&
+                      review.responses.length > 0 && (
+                        <View style={styles.responsesContainer}>
+                          {review.responses.map((response) => (
+                            <View key={response.id} style={styles.responseItem}>
+                              <View style={styles.responseHeader}>
+                                <Image
+                                  source={{
+                                    uri:
+                                      response.profile?.avatar_url ||
+                                      'https://via.placeholder.com/150?text=User',
+                                  }}
+                                  style={styles.responseAvatar}
+                                />
+                                <View>
+                                  <Text style={styles.responseName}>
+                                    {response.profile?.first_name || 'Anónimo'}
+                                  </Text>
+                                  <Text style={styles.responseDate}>
+                                    {new Date(
+                                      response.created_at
+                                    ).toLocaleDateString()}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={styles.responseText}>
+                                {response.response_text}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                    {/* Muestra el formulario de respuesta solo si el usuario es el anfitrión o el revisor original */}
+                    {(user?.id === accommodation.host_id ||
+                      user?.id === review.user_id) && (
+                      <View style={styles.responseForm}>
+                        <TextInput
+                          style={styles.responseInput}
+                          placeholder="Escribe una respuesta..."
+                          placeholderTextColor="#9CA3AF"
+                          value={responseTexts[review.id] || ''}
+                          onChangeText={(text) =>
+                            setResponseTexts((prev) => ({
+                              ...prev,
+                              [review.id]: text,
+                            }))
+                          }
+                          multiline
+                        />
+                        <TouchableOpacity
+                          style={styles.sendResponseButton}
+                          onPress={() => handleSubmitResponse(review.id)}
+                          disabled={
+                            responseLoading[review.id] ||
+                            !responseTexts[review.id]?.trim()
+                          }
+                        >
+                          {responseLoading[review.id] ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Send size={20} color="#FFFFFF" />
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
                 ))}
               </>
             ) : (
-              <Text style={styles.noReviewsText}>No hay reseñas aún</Text>
+              <Text style={styles.noReviewsText}>
+                Este alojamiento aún no tiene reseñas. ¡Sé el primero en dejar una!
+              </Text>
             )}
           </View>
 
@@ -695,9 +846,7 @@ export default function AccommodationDetailScreen() {
         animationType="slide"
         transparent={true}
         visible={reviewModalVisible}
-        onRequestClose={() => {
-          setReviewModalVisible(!reviewModalVisible);
-        }}
+        onRequestClose={() => setReviewModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -741,7 +890,7 @@ export default function AccommodationDetailScreen() {
 
             <Button
               title={reviewLoading ? 'Enviando...' : 'Enviar reseña'}
-              onPress={handleSubmitReview}
+              onPress={handleCreateReview}
               disabled={reviewLoading || reviewRating === 0}
               style={styles.submitButton}
             />
@@ -777,6 +926,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    paddingBottom: 100, // Make sure content isn't hidden by bottom bar
   },
   loadingContainer: {
     flex: 1,
@@ -866,6 +1016,7 @@ const styles = StyleSheet.create({
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 4,
   },
   rating: {
     color: '#FFFFFF',
@@ -949,11 +1100,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 16,
   },
   amenitiesList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    marginTop: 16,
   },
   amenityItem: {
     flexDirection: 'row',
@@ -969,6 +1120,7 @@ const styles = StyleSheet.create({
   noAmenitiesText: {
     color: '#9CA3AF',
     fontStyle: 'italic',
+    marginTop: 8,
   },
   reviewsSection: {
     borderBottomWidth: 1,
@@ -988,7 +1140,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(74, 222, 128, 0.1)',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 20,
   },
   addReviewButtonText: {
     color: '#4ADE80',
@@ -1001,9 +1153,9 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
-  reviewHeader: {
+  reviewHeaderContent: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
   reviewerAvatar: {
@@ -1012,6 +1164,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 12,
     backgroundColor: '#374151',
+  },
+  reviewContent: {
+    flex: 1,
   },
   reviewerName: {
     color: '#FFFFFF',
@@ -1023,15 +1178,77 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   reviewText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: 24,
+    color: '#E5E7EB',
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 8,
   },
   noReviewsText: {
     color: '#9CA3AF',
     fontStyle: 'italic',
     textAlign: 'center',
     marginVertical: 16,
+  },
+  toggleResponsesButton: {
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  toggleResponsesText: {
+    color: '#4ADE80',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  responsesContainer: {
+    marginTop: 12,
+    marginLeft: 52, // Indent responses
+    borderLeftWidth: 1,
+    borderLeftColor: '#374151',
+    paddingLeft: 12,
+  },
+  responseItem: {
+    marginBottom: 12,
+  },
+  responseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  responseAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  responseName: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  responseDate: {
+    color: '#9CA3AF',
+    fontSize: 12,
+  },
+  responseText: {
+    color: '#E5E7EB',
+  },
+  responseForm: {
+    flexDirection: 'row',
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  responseInput: {
+    flex: 1,
+    backgroundColor: '#374151',
+    color: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginRight: 8,
+  },
+  sendResponseButton: {
+    backgroundColor: '#4ADE80',
+    borderRadius: 20,
+    padding: 8,
   },
   locationSection: {
     marginBottom: 100,
@@ -1057,7 +1274,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   modalContent: {
     width: '90%',
@@ -1084,12 +1301,13 @@ const styles = StyleSheet.create({
   },
   ratingLabel: {
     color: '#FFFFFF',
-    marginBottom: 8,
+    fontSize: 16,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   starsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
+    justifyContent: 'space-around',
   },
   modalInput: {
     backgroundColor: '#374151',
@@ -1099,11 +1317,16 @@ const styles = StyleSheet.create({
     minHeight: 100,
     marginBottom: 20,
     textAlignVertical: 'top',
+    fontSize: 16,
   },
   submitButton: {
     width: '100%',
   },
   bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

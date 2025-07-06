@@ -70,6 +70,20 @@ const BikeDetailScreen = () => {
     }
   };
 
+  // New function for reporting damages
+  const handleReportDamage = () => {
+    // This is a placeholder. You'll implement the actual logic later.
+    Alert.alert(
+      'Reportar Daños',
+      `Has presionado el botón para reportar daños para la bicicleta ${bike?.bike_type || ''} (ID: ${bike?.id || ''}). Aquí irá la lógica para el reporte.`
+    );
+    // Example of navigation to a new screen for reporting:
+    // router.push({
+    //   pathname: '/reportDamage',
+    //   params: { bikeId: bike.id, bikeType: bike.bike_type }
+    // });
+  };
+
   const openMaps = () => {
     if (bike?.location) {
       Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(bike.location)}`);
@@ -157,14 +171,18 @@ const BikeDetailScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Botón de renta */}
-      {bike.is_available && (
-        <View style={styles.footer}>
+      {/* Footer con los botones */}
+      <View style={styles.footer}>
+        {bike.is_available && (
           <TouchableOpacity style={styles.rentButton} onPress={handleRent}>
             <Text style={styles.rentButtonText}>Rentar esta bicicleta</Text>
           </TouchableOpacity>
-        </View>
-      )}
+        )}
+        {/* Nuevo botón para reportar daños */}
+        <TouchableOpacity style={styles.reportDamageButton} onPress={handleReportDamage}>
+          <Text style={styles.reportDamageButtonText}>Reportar Daños</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -304,14 +322,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
     borderTopWidth: 1,
     borderTopColor: '#374151',
+    flexDirection: 'column', // Changed to column to stack buttons
+    gap: 10, // Add gap between buttons
   },
   rentButton: {
     backgroundColor: '#4ADE80',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    flex: 1, // Make it take available space
   },
   rentButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  // New styles for the Report Damage button
+  reportDamageButton: {
+    backgroundColor: '#EF4444', // A red color for danger/warning
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    flex: 1, // Make it take available space
+  },
+  reportDamageButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',

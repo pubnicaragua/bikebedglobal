@@ -50,6 +50,7 @@
     "noServices": "No services found",
     "noBikesAvailable": "No bikes available",
     "filters": {
+      "title": "Filters",
       "all": "All",
       "nearby": "Nearby",
       "popular": "Popular",
@@ -57,8 +58,19 @@
       "cheap": "Cheap",
       "expensive": "Expensive",
       "mountain": "Mountain",
-      "road":"Road",
-      "city":"City"
+      "road": "Road",
+      "city": "City",
+      "kitchen": "Kitchen",
+      "bikeStorage": "Bike storage",
+      "bikeRental": "Bike rental",
+      "laundry": "Laundry",
+      "parking": "Parking",
+      "hybrid": "Hybrid",
+      "electric": "Electric",
+      "wifi": "WiFi",
+      "easy": "Easy",
+      "moderate": "Moderate",
+      "hard": "Hard"
     },
     "sections": {
       "recommended": "Recommended for you",
@@ -74,7 +86,7 @@
       "accommodations": "Accommodations",
       "bikes": "Bikes",
       "routes": "Routes",
-      "all": "Food"
+      "all": "All"
     },
     "viewDetails": "View details"
   },
@@ -84,7 +96,7 @@
     "share": "Share",
     "shareMessage": "Check out this accommodation I found in the app!",
     "removeFavorite": "Remove favorite",
-    "confirmRemoveTitle": "Remove favorite",
+    "confirmRemoveTitle": "Remove Favorite",
     "confirmRemoveMessage": "Are you sure you want to remove this item from your favorites?",
     "shareError": "Error sharing",
     "removeError": "Error removing favorite",
@@ -221,7 +233,8 @@
     "noUserId": "No user ID found",
     "unknownError": "An unknown error occurred",
     "defaultFirstName": "User",
-    "defaultLastName": "Name"
+    "defaultLastName": "Name",
+    "checkPrivacy": "Check Privacy"
   },
   "accommodation": {
     "perNight": "night",
@@ -247,6 +260,10 @@
   },
   "route": {
     "difficulty": "Difficulty",
+    "difficultyEasy": "Easy",
+    "difficultyModerate": "Moderate",
+    "difficultyHard": "Hard",
+    "difficultyUnknown": "Unknown",
     "distance": "Distance",
     "elevation": "Elevation",
     "estimatedTime": "Estimated time",
@@ -256,6 +273,9 @@
     "reviews": "Reviews",
     "save": "Save",
     "touristRoute": "Tourist route"
+  },
+  "bike": {
+    "defaultSize": "Standard size"
   },
   "common": {
     "save": "Save",
@@ -283,7 +303,9 @@
     "list": "List",
     "grid": "Grid",
     "remove": "Remove",
-    "pay": "Pay"
+    "pay": "Pay",
+    "perDay": "day",
+    "unknownLocation": "Unknown location"
   },
   "navigation": {
     "home": "Home",
@@ -292,5 +314,35 @@
     "bookings": "Bookings",
     "notifications": "Notifications",
     "profile": "My Profile"
+  },
+  "hostDashboard": {
+    "title": "Host Dashboard",
+    "subtitle": "Manage your accommodations and bookings",
+    "accommodationsTitle": "Accommodations",
+    "accommodationsSubtitle": "active",
+    "bookingsTitle": "Bookings",
+    "bookingsSubtitle": "total",
+    "revenueTitle": "Revenue",
+    "revenueSubtitle": "confirmed",
+    "ratingTitle": "Rating",
+    "ratingSubtitle": "average",
+    "quickActionsTitle": "Quick Actions",
+    "manageAccommodationsTitle": "Manage Accommodations",
+    "manageAccommodationsSubtitle": "Add, edit, or deactivate properties",
+    "manageBikesTitle": "Manage Bikes",
+    "manageBikesSubtitle": "Manage your bike fleet",
+    "viewBookingsTitle": "View Bookings",
+    "viewBookingsSubtitle": "Review and manage pending bookings",
+    "viewRentalHistory": "View Rental History",
+    "rentalHistorySubtitle": "Review all your past transactions",
+    "messagesTitle": "Messages",
+    "unreadMessages": "unread messages",
+    "recentActivityTitle": "Recent Activity",
+    "newBookingReceived": "New booking received",
+    "twoHoursAgo": "2 hours ago",
+    "fiveStarReview": "5-star review",
+    "yesterday": "Yesterday",
+    "paymentProcessed": "Payment processed",
+    "threeDaysAgo": "3 days ago"
   }
 }

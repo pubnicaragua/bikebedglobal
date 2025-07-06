@@ -86,7 +86,7 @@
       "accommodations": "Alojamientos",
       "bikes": "Bicicletas",
       "routes": "Rutas",
-      "all": "Comida"
+      "all": "Todo" 
     },
     "viewDetails": "Ver detalles"
   },
@@ -234,7 +234,7 @@
     "unknownError": "Ocurrió un error desconocido",
     "defaultFirstName": "Usuario",
     "defaultLastName": "Nombre",
-    "checkPrivacity": "Comprobar privacidad"
+    "checkPrivacy": "Comprobar privacidad"
   },
   "accommodation": {
     "perNight": "noche",
@@ -314,5 +314,35 @@
     "bookings": "Reservas",
     "notifications": "Notificaciones",
     "profile": "Mi Perfil"
+  },
+  "hostDashboard": {
+    "title": "Panel de Anfitrión",
+    "subtitle": "Gestiona tus alojamientos y reservas",
+    "accommodationsTitle": "Alojamientos",
+    "accommodationsSubtitle": "activos",
+    "bookingsTitle": "Reservas",
+    "bookingsSubtitle": "totales",
+    "revenueTitle": "Ingresos",
+    "revenueSubtitle": "confirmados",
+    "ratingTitle": "Calificación",
+    "ratingSubtitle": "promedio",
+    "quickActionsTitle": "Acciones Rápidas",
+    "manageAccommodationsTitle": "Gestionar Alojamientos",
+    "manageAccommodationsSubtitle": "Agregar, editar o desactivar propiedades",
+    "manageBikesTitle": "Gestionar Bicicletas",
+    "manageBikesSubtitle": "Administrar tu flota de bicicletas",
+    "viewBookingsTitle": "Ver Reservas",
+    "viewBookingsSubtitle": "Revisar y gestionar reservas pendientes",
+    "viewRentalHistory": "Ver Historial de Alquileres",
+    "rentalHistorySubtitle": "Revisa todas tus transacciones pasadas",
+    "messagesTitle": "Mensajes",
+    "unreadMessages": "mensajes sin leer",
+    "recentActivityTitle": "Actividad Reciente",
+    "newBookingReceived": "Nueva reserva recibida",
+    "twoHoursAgo": "Hace 2 horas",
+    "fiveStarReview": "Reseña de 5 estrellas",
+    "yesterday": "Ayer",
+    "paymentProcessed": "Pago procesado",
+    "threeDaysAgo": "Hace 3 días"
   }
 }

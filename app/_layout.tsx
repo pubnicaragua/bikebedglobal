@@ -21,6 +21,7 @@ export default function RootLayout() {
         <Stack.Screen name="chat/index" />
         <Stack.Screen name="+not-found" />
         <Stack.Screen name="routes/[id]" />
+        <Stack.Screen name="payHistory/[id]" />
       </Stack>
       <StatusBar style="light" backgroundColor="#111827" />
     </>

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Home, DollarSign, Star, MessageCircle, Calendar, Bike, LogOut } from 'lucide-react-native';
+import { Home, DollarSign, Star, MessageCircle, Calendar, Bike, LogOut, History } from 'lucide-react-native'; // Importa History
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
@@ -68,12 +68,12 @@ export default function HostDashboardScreen() {
 
   const handleSignOut = () => {
     Alert.alert(
-      t('profile.signOut'),
-      '¿Estás seguro de que quieres cerrar sesión?',
+      t('profile.signOut') || 'Cerrar Sesión', // Fallback para la traducción
+      t('profile.signOutConfirmation') || '¿Estás seguro de que quieres cerrar sesión?', // Fallback
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('common.cancel') || 'Cancelar', style: 'cancel' }, // Fallback
         {
-          text: t('profile.signOut'),
+          text: t('profile.signOut') || 'Cerrar Sesión', // Fallback
           style: 'destructive',
           onPress: async () => {
             await signOut();
@@ -136,7 +136,7 @@ export default function HostDashboardScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Cargando...</Text>
+          <Text style={styles.loadingText}>{t('common.loading') || 'Cargando...'}</Text> {/* Fallback */}
         </View>
       </SafeAreaView>
     );
@@ -146,8 +146,8 @@ export default function HostDashboardScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
         <View style={styles.headerTextContainer}>
-          <Text style={styles.title}>Panel de Anfitrión</Text>
-          <Text style={styles.subtitle}>Gestiona tus alojamientos y reservas</Text>
+          <Text style={styles.title}>{t('hostDashboard.title') || 'Panel de Anfitrión'}</Text> {/* Fallback */}
+          <Text style={styles.subtitle}>{t('hostDashboard.subtitle') || 'Gestiona tus alojamientos y reservas'}</Text> {/* Fallback */}
         </View>
         <View style={styles.headerButtonsContainer}>
           <LanguageToggle />
@@ -164,35 +164,36 @@ export default function HostDashboardScreen() {
         <View style={styles.statsGrid}>
           <StatCard
             icon={Home}
-            title="Alojamientos"
+            title={t('hostDashboard.accommodationsTitle') || "Alojamientos"}
             value={stats.totalAccommodations}
-            subtitle="activos"
+            subtitle={t('hostDashboard.accommodationsSubtitle') || "activos"}
           />
           <StatCard
             icon={Calendar}
-            title="Reservas"
+            title={t('hostDashboard.bookingsTitle') || "Reservas"}
             value={stats.totalBookings}
-            subtitle="totales"
+            subtitle={t('hostDashboard.bookingsSubtitle') || "totales"}
             color="#F59E0B"
           />
           <StatCard
             icon={DollarSign}
-            title="Ingresos"
+            title={t('hostDashboard.revenueTitle') || "Ingresos"}
             value={`$${stats.totalRevenue.toFixed(0)}`}
-            subtitle="confirmados"
+            subtitle={t('hostDashboard.revenueSubtitle') || "confirmados"}
             color="#10B981"
           />
           <StatCard
             icon={Star}
-            title="Calificación"
+            title={t('hostDashboard.ratingTitle') || "Calificación"}
             value={stats.averageRating.toFixed(1)}
-            subtitle="promedio"
+            subtitle={t('hostDashboard.ratingSubtitle') || "promedio"}
             color="#8B5CF6"
           />
         </View>
 
         <View style={styles.quickActions}>
-          <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
+          <Text style={styles.sectionTitle}>{t('hostDashboard.quickActionsTitle') || 'Acciones Rápidas'}</Text>
+          
           <TouchableOpacity 
             style={styles.actionCard}
             onPress={() => router.push('/(host)/accommodations')}
@@ -201,8 +202,8 @@ export default function HostDashboardScreen() {
               <Home size={20} color="#4ADE80" />
             </View>
             <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Gestionar Alojamientos</Text>
-              <Text style={styles.actionSubtitle}>Agregar, editar o desactivar propiedades</Text>
+              <Text style={styles.actionTitle}>{t('hostDashboard.manageAccommodationsTitle') || 'Gestionar Alojamientos'}</Text>
+              <Text style={styles.actionSubtitle}>{t('hostDashboard.manageAccommodationsSubtitle') || 'Agregar, editar o desactivar propiedades'}</Text>
             </View>
           </TouchableOpacity>
 
@@ -214,8 +215,8 @@ export default function HostDashboardScreen() {
               <Bike size={20} color="#4ADE80" />
             </View>
             <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Gestionar Bicicletas</Text>
-              <Text style={styles.actionSubtitle}>Administrar tu flota de bicicletas</Text>
+              <Text style={styles.actionTitle}>{t('hostDashboard.manageBikesTitle') || 'Gestionar Bicicletas'}</Text>
+              <Text style={styles.actionSubtitle}>{t('hostDashboard.manageBikesSubtitle') || 'Administrar tu flota de bicicletas'}</Text>
             </View>
           </TouchableOpacity>
 
@@ -227,10 +228,25 @@ export default function HostDashboardScreen() {
               <Calendar size={20} color="#4ADE80" />
             </View>
             <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Ver Reservas</Text>
-              <Text style={styles.actionSubtitle}>Revisar y gestionar reservas pendientes</Text>
+              <Text style={styles.actionTitle}>{t('hostDashboard.viewBookingsTitle') || 'Ver Reservas'}</Text>
+              <Text style={styles.actionSubtitle}>{t('hostDashboard.viewBookingsSubtitle') || 'Revisar y gestionar reservas pendientes'}</Text>
             </View>
           </TouchableOpacity>
+
+          {/* Nuevo botón: Ver Historial de Alquileres */}
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/')}
+          >
+            <View style={styles.actionIcon}>
+              <History size={20} color="#4ADE80" /> {/* Icono de historial */}
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>{t('hostDashboard.viewRentalHistory') || 'Ver Historial de Alquileres'}</Text>
+              <Text style={styles.actionSubtitle}>{t('hostDashboard.rentalHistorySubtitle') || 'Revisa todas tus transacciones pasadas'}</Text>
+            </View>
+          </TouchableOpacity>
+          {/* Fin del nuevo botón */}
 
           {stats.unreadMessages > 0 && (
             <TouchableOpacity 
@@ -241,9 +257,9 @@ export default function HostDashboardScreen() {
                 <MessageCircle size={20} color="#EF4444" />
               </View>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Mensajes</Text>
+                <Text style={styles.actionTitle}>{t('hostDashboard.messagesTitle') || 'Mensajes'}</Text>
                 <Text style={styles.actionSubtitle}>
-                  {stats.unreadMessages} mensajes sin leer
+                  {stats.unreadMessages} {t('hostDashboard.unreadMessages') || 'mensajes sin leer'}
                 </Text>
               </View>
               <View style={styles.badge}>
@@ -254,18 +270,18 @@ export default function HostDashboardScreen() {
         </View>
 
         <View style={styles.recentActivity}>
-          <Text style={styles.sectionTitle}>Actividad Reciente</Text>
+          <Text style={styles.sectionTitle}>{t('hostDashboard.recentActivityTitle') || 'Actividad Reciente'}</Text>
           <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Nueva reserva recibida</Text>
-            <Text style={styles.activityTime}>Hace 2 horas</Text>
+            <Text style={styles.activityTitle}>{t('hostDashboard.newBookingReceived') || 'Nueva reserva recibida'}</Text>
+            <Text style={styles.activityTime}>{t('hostDashboard.twoHoursAgo') || 'Hace 2 horas'}</Text>
           </View>
           <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Reseña de 5 estrellas</Text>
-            <Text style={styles.activityTime}>Ayer</Text>
+            <Text style={styles.activityTitle}>{t('hostDashboard.fiveStarReview') || 'Reseña de 5 estrellas'}</Text>
+            <Text style={styles.activityTime}>{t('hostDashboard.yesterday') || 'Ayer'}</Text>
           </View>
           <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Pago procesado</Text>
-            <Text style={styles.activityTime}>Hace 3 días</Text>
+            <Text style={styles.activityTitle}>{t('hostDashboard.paymentProcessed') || 'Pago procesado'}</Text>
+            <Text style={styles.activityTime}>{t('hostDashboard.threeDaysAgo') || 'Hace 3 días'}</Text>
           </View>
         </View>
       </ScrollView>
