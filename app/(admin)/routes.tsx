@@ -1,30 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator,
-  FlatList,
-  TextInput,
-  Modal,
-  Alert,
-  Switch,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
-  Dimensions
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, 
+  ActivityIndicator, FlatList, TextInput, Modal, Alert,
+  KeyboardAvoidingView, Platform, Switch, Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Map, Plus, Search, Filter, ChevronRight, MapPin, Clock, X, Save, Camera, ImageIcon, Trash2 } from 'lucide-react-native';
+import { 
+  Map, Plus, Search, Filter, ChevronRight, MapPin, Clock, 
+  X, Save, Camera, Image as ImageIcon, Trash2, Download 
+} from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library';
+import { generateRoutesHtml } from '../../components/routesPdfTemplate';
 
 interface Route {
   id: string;
@@ -67,6 +62,26 @@ interface SelectedImage {
   is_primary: boolean;
 }
 
+const getDifficultyText = (difficulty: string) => {
+  switch (difficulty) {
+    case 'easy': return 'Fácil';
+    case 'moderate': return 'Moderada';
+    case 'hard': return 'Difícil';
+    case 'expert': return 'Experto';
+    default: return difficulty;
+  }
+};
+
+const formatTime = (minutes: number | null) => {
+  if (!minutes) return 'N/A';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours > 0) {
+    return `${hours}h ${mins}m`;
+  }
+  return `${mins}m`;
+};
+
 export default function RoutesManagementScreen() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,14 +121,68 @@ export default function RoutesManagementScreen() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error al obtener rutas:', error);
-        throw error;
-      }
-      
+      if (error) throw error;
       setRoutes(data || []);
     } catch (error) {
       console.error('Error fetching routes:', error);
+      Alert.alert('Error', 'No se pudieron cargar las rutas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generatePDF = async () => {
+    try {
+      setLoading(true);
+      
+      if (routes.length === 0) {
+        Alert.alert('No hay rutas', 'No hay rutas disponibles para generar el reporte');
+        return;
+      }
+
+      if (Platform.OS === 'android') {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permiso requerido', 'Se necesita acceso al almacenamiento para guardar el PDF');
+          return;
+        }
+      }
+
+      const htmlContent = generateRoutesHtml(routes, {
+        getDifficultyText,
+        formatTime
+      });
+
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        width: 612,
+        height: 792,
+        base64: false,
+      });
+
+      if (!uri) {
+        throw new Error('No se pudo generar el archivo PDF');
+      }
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Reporte de Rutas',
+          UTI: 'com.adobe.pdf'
+        });
+      } else {
+        Alert.alert(
+          'PDF generado',
+          `El PDF se ha guardado en: ${uri}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      Alert.alert(
+        'Error', 
+        error instanceof Error ? error.message : 'No se pudo generar el PDF'
+      );
     } finally {
       setLoading(false);
     }
@@ -143,12 +212,12 @@ export default function RoutesManagementScreen() {
     setSelectedImages([]);
   };
 
-  const requestPermissions = async () => {
+  const requestMediaPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(
         'Permisos requeridos',
-        'Necesitamos acceso a tu galería para seleccionar imágenes de la ruta.'
+        'Necesitamos acceso a tu galería para seleccionar imágenes'
       );
       return false;
     }
@@ -156,7 +225,7 @@ export default function RoutesManagementScreen() {
   };
 
   const pickImages = async () => {
-    const hasPermission = await requestPermissions();
+    const hasPermission = await requestMediaPermissions();
     if (!hasPermission) return;
 
     try {
@@ -191,7 +260,7 @@ export default function RoutesManagementScreen() {
     if (status !== 'granted') {
       Alert.alert(
         'Permisos requeridos',
-        'Necesitamos acceso a tu cámara para tomar fotos de la ruta.'
+        'Necesitamos acceso a tu cámara para tomar fotos'
       );
       return;
     }
@@ -284,7 +353,7 @@ export default function RoutesManagementScreen() {
     const imageRecords = imageUrls.map((url, index) => ({
       route_id: routeId,
       image_url: url,
-      is_primary: index === 0,
+      is_primary: selectedImages[index]?.is_primary || index === 0,
     }));
 
     const { error } = await supabase
@@ -363,21 +432,7 @@ export default function RoutesManagementScreen() {
         try {
           setUploadingImages(true);
           const imageUrls = await uploadImages(routeData_result.id);
-          
-          const imageRecords = imageUrls.map((url, index) => {
-            const selectedImage = selectedImages[index];
-            return {
-              route_id: routeData_result.id,
-              image_url: url,
-              is_primary: selectedImage?.is_primary || index === 0,
-            };
-          });
-
-          const { error: imageError } = await supabase
-            .from('route_images')
-            .insert(imageRecords);
-
-          if (imageError) throw imageError;
+          await createImageRecords(routeData_result.id, imageUrls);
           
         } catch (imageUploadError) {
           console.error('Error subiendo imágenes:', imageUploadError);
@@ -419,26 +474,6 @@ export default function RoutesManagementScreen() {
       case 'expert': return '#7C3AED';
       default: return '#6B7280';
     }
-  };
-
-  const getDifficultyText = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return 'Fácil';
-      case 'moderate': return 'Moderada';
-      case 'hard': return 'Difícil';
-      case 'expert': return 'Experto';
-      default: return difficulty;
-    }
-  };
-
-  const formatTime = (minutes: number | null) => {
-    if (!minutes) return 'N/A';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins}m`;
   };
 
   const renderRouteItem = ({ item }: { item: Route }) => (
@@ -529,12 +564,25 @@ export default function RoutesManagementScreen() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.title}>Gestión de Rutas</Text>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => setShowCreateModal(true)}
-          >
-            <Plus size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity 
+              style={[styles.headerButton, styles.downloadButton]}
+              onPress={generatePDF}
+              disabled={loading || routes.length === 0}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Download size={20} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.headerButton, styles.addButton]}
+              onPress={() => setShowCreateModal(true)}
+            >
+              <Plus size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -665,7 +713,237 @@ export default function RoutesManagementScreen() {
             </View>
 
             <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
-              {/* Resto del formulario... */}
+              <Text style={styles.formDescription}>
+                Completa todos los campos obligatorios (*) para crear una nueva ruta.
+              </Text>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Nombre de la ruta *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Nombre descriptivo de la ruta"
+                  placeholderTextColor="#6B7280"
+                  value={newRoute.name}
+                  onChangeText={(text) => setNewRoute({...newRoute, name: text})}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Descripción *</Text>
+                <TextInput
+                  style={[styles.formInput, styles.textArea]}
+                  placeholder="Describe la ruta, puntos destacados, etc."
+                  placeholderTextColor="#6B7280"
+                  multiline
+                  numberOfLines={4}
+                  value={newRoute.description}
+                  onChangeText={(text) => setNewRoute({...newRoute, description: text})}
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={styles.formGroupHalf}>
+                  <Text style={styles.formLabel}>Distancia (km) *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="0.0"
+                    placeholderTextColor="#6B7280"
+                    keyboardType="numeric"
+                    value={newRoute.distance}
+                    onChangeText={(text) => setNewRoute({...newRoute, distance: text})}
+                  />
+                </View>
+                
+                <View style={styles.formGroupHalf}>
+                  <Text style={styles.formLabel}>Elevación (m)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Opcional"
+                    placeholderTextColor="#6B7280"
+                    keyboardType="numeric"
+                    value={newRoute.elevation_gain}
+                    onChangeText={(text) => setNewRoute({...newRoute, elevation_gain: text})}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={styles.formGroupHalf}>
+                  <Text style={styles.formLabel}>Tiempo estimado (min)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Opcional"
+                    placeholderTextColor="#6B7280"
+                    keyboardType="numeric"
+                    value={newRoute.estimated_time}
+                    onChangeText={(text) => setNewRoute({...newRoute, estimated_time: text})}
+                  />
+                </View>
+                
+                <View style={styles.formGroupHalf}>
+                  <Text style={styles.formLabel}>Dificultad *</Text>
+                  <View style={styles.difficultyContainer}>
+                    {(['easy', 'moderate', 'hard', 'expert'] as const).map((level) => (
+                      <TouchableOpacity
+                        key={level}
+                        style={[
+                          styles.difficultyOption,
+                          newRoute.difficulty === level && styles.difficultyOptionSelected
+                        ]}
+                        onPress={() => setNewRoute({...newRoute, difficulty: level})}
+                      >
+                        <Text style={[
+                          styles.difficultyText,
+                          newRoute.difficulty === level && styles.difficultyTextSelected
+                        ]}>
+                          {getDifficultyText(level)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Ubicación de inicio *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Punto de partida"
+                  placeholderTextColor="#6B7280"
+                  value={newRoute.start_location}
+                  onChangeText={(text) => setNewRoute({...newRoute, start_location: text})}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Ubicación de fin *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Punto de llegada"
+                  placeholderTextColor="#6B7280"
+                  value={newRoute.end_location}
+                  onChangeText={(text) => setNewRoute({...newRoute, end_location: text})}
+                />
+              </View>
+
+              <View style={styles.imageButtonsContainer}>
+                <TouchableOpacity 
+                  style={styles.imageButton}
+                  onPress={pickImages}
+                >
+                  <ImageIcon size={18} color="#8B5CF6" />
+                  <Text style={styles.imageButtonText}>Galería</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.imageButton}
+                  onPress={takePhoto}
+                >
+                  <Camera size={18} color="#8B5CF6" />
+                  <Text style={styles.imageButtonText}>Cámara</Text>
+                </TouchableOpacity>
+              </View>
+
+              {selectedImages.length > 0 && (
+                <View style={styles.selectedImagesContainer}>
+                  <Text style={styles.selectedImagesTitle}>
+                    Imágenes seleccionadas ({selectedImages.length})
+                  </Text>
+                  <ScrollView 
+                    horizontal 
+                    style={styles.imagesScrollView}
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    {selectedImages.map((image) => (
+                      <View key={image.id} style={styles.imagePreviewContainer}>
+                        <Image 
+                          source={{ uri: image.uri }} 
+                          style={styles.imagePreview}
+                        />
+                        {image.is_primary && (
+                          <View style={styles.primaryBadge}>
+                            <Text style={styles.primaryBadgeText}>Principal</Text>
+                          </View>
+                        )}
+                        <View style={styles.imageActions}>
+                          {!image.is_primary && (
+                            <TouchableOpacity
+                              style={styles.setPrimaryButton}
+                              onPress={() => setPrimaryImage(image.id)}
+                            >
+                              <Text style={styles.setPrimaryButtonText}>Hacer principal</Text>
+                            </TouchableOpacity>
+                          )}
+                          <TouchableOpacity
+                            style={styles.removeImageButton}
+                            onPress={() => removeImage(image.id)}
+                          >
+                            <Trash2 size={14} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              <View style={styles.switchContainer}>
+                <View style={styles.switchRow}>
+                  <View style={styles.switchInfo}>
+                    <Text style={styles.switchLabel}>Ruta circular</Text>
+                    <Text style={styles.switchDescription}>
+                      Marca si la ruta termina en el mismo lugar donde comienza
+                    </Text>
+                  </View>
+                  <Switch
+                    value={newRoute.is_loop}
+                    onValueChange={(value) => setNewRoute({...newRoute, is_loop: value})}
+                    thumbColor={newRoute.is_loop ? '#8B5CF6' : '#9CA3AF'}
+                    trackColor={{ false: '#374151', true: '#8B5CF650' }}
+                  />
+                </View>
+                
+                <View style={styles.switchRow}>
+                  <View style={styles.switchInfo}>
+                    <Text style={styles.switchLabel}>Verificada</Text>
+                    <Text style={styles.switchDescription}>
+                      Marca si la ruta ha sido verificada por un administrador
+                    </Text>
+                  </View>
+                  <Switch
+                    value={newRoute.is_verified}
+                    onValueChange={(value) => setNewRoute({...newRoute, is_verified: value})}
+                    thumbColor={newRoute.is_verified ? '#8B5CF6' : '#9CA3AF'}
+                    trackColor={{ false: '#374151', true: '#8B5CF650' }}
+                  />
+                </View>
+                
+                <View style={[styles.switchRow, styles.switchRowLast]}>
+                  <View style={styles.switchInfo}>
+                    <Text style={styles.switchLabel}>Activa</Text>
+                    <Text style={styles.switchDescription}>
+                      Desmarca para ocultar esta ruta de los listados públicos
+                    </Text>
+                  </View>
+                  <Switch
+                    value={newRoute.is_active}
+                    onValueChange={(value) => setNewRoute({...newRoute, is_active: value})}
+                    thumbColor={newRoute.is_active ? '#8B5CF6' : '#9CA3AF'}
+                    trackColor={{ false: '#374151', true: '#8B5CF650' }}
+                  />
+                </View>
+              </View>
+
+              {uploadingImages && (
+                <View style={styles.uploadingIndicator}>
+                  <ActivityIndicator size="small" color="#8B5CF6" />
+                  <Text style={styles.uploadingText}>Subiendo imágenes...</Text>
+                </View>
+              )}
+
+              <View style={styles.modalFooter}>
+                <Text style={styles.requiredNote}>* Campos obligatorios</Text>
+              </View>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -696,13 +974,22 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  addButton: {
-    backgroundColor: '#8B5CF6',
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  addButton: {
+    backgroundColor: '#8B5CF6',
+  },
+  downloadButton: {
+    backgroundColor: '#3B82F6',
   },
   loadingContainer: {
     flex: 1,
@@ -845,16 +1132,15 @@ const styles = StyleSheet.create({
   routeMeta: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
     alignItems: 'center',
+    gap: 8,
   },
   routeMetaText: {
     color: '#9CA3AF',
     fontSize: 12,
   },
   routeDifficulty: {
-    fontWeight: '600',
-    textTransform: 'capitalize',
+    fontWeight: 'bold',
   },
   timeContainer: {
     flexDirection: 'row',
@@ -862,43 +1148,42 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   loopBadge: {
-    backgroundColor: '#374151',
-    color: '#D1D5DB',
-    fontSize: 10,
+    backgroundColor: '#8B5CF620',
+    color: '#8B5CF6',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    overflow: 'hidden',
+    fontSize: 12,
+    fontWeight: '500',
   },
   routeStatus: {
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   emptyState: {
-    backgroundColor: '#1F2937',
-    borderRadius: 12,
-    padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 40,
   },
   emptyText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
     marginTop: 16,
-    marginBottom: 4,
   },
   emptySubtext: {
     color: '#9CA3AF',
     fontSize: 14,
+    marginTop: 4,
+    marginBottom: 16,
     textAlign: 'center',
-    marginBottom: 20,
   },
   createButton: {
     backgroundColor: '#8B5CF6',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 8,
     gap: 8,
   },
@@ -927,62 +1212,63 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#374151',
+    backgroundColor: '#1F2937',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalTitle: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   saveButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    flexDirection: 'row',
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
   },
   saveButtonDisabled: {
-    backgroundColor: '#6B7280',
+    opacity: 0.6,
   },
   modalForm: {
-    flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 16,
+  },
+  formDescription: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    marginBottom: 16,
   },
   formGroup: {
-    marginBottom: 20,
-  },
-  formGroupHalf: {
-    flex: 1,
-  },
-  formRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   formLabel: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
   },
   formInput: {
     backgroundColor: '#1F2937',
-    borderRadius: 12,
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     color: '#FFFFFF',
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#374151',
   },
   textArea: {
     height: 100,
-    paddingTop: 12,
+    textAlignVertical: 'top',
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  formGroupHalf: {
+    flex: 1,
   },
   difficultyContainer: {
     flexDirection: 'row',
@@ -994,31 +1280,104 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#374151',
   },
   difficultyOptionSelected: {
     backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
   },
   difficultyText: {
-    color: '#9CA3AF',
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '500',
   },
   difficultyTextSelected: {
+    fontWeight: 'bold',
+  },
+  imageButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  imageButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1F2937',
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  imageButtonText: {
+    color: '#8B5CF6',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  selectedImagesContainer: {
+    marginBottom: 16,
+  },
+  selectedImagesTitle: {
     color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  imagesScrollView: {
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+  },
+  imagePreviewContainer: {
+    width: 150,
+    marginRight: 12,
+  },
+  imagePreview: {
+    width: 150,
+    height: 100,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  primaryBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  primaryBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  imageActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  setPrimaryButton: {
+    backgroundColor: '#1F2937',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  setPrimaryButtonText: {
+    color: '#8B5CF6',
+    fontSize: 12,
+  },
+  removeImageButton: {
+    backgroundColor: '#1F2937',
+    padding: 4,
+    borderRadius: 4,
   },
   switchContainer: {
     backgroundColor: '#1F2937',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
+    overflow: 'hidden',
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#374151',
@@ -1032,124 +1391,31 @@ const styles = StyleSheet.create({
   },
   switchLabel: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   switchDescription: {
     color: '#9CA3AF',
     fontSize: 12,
-  },
-  modalFooter: {
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  requiredNote: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    fontStyle: 'italic',
-  },
-  formDescription: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  imageButtonsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  imageButton: {
-    backgroundColor: '#1F2937',
-    borderWidth: 1,
-    borderColor: '#8B5CF6',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  imageButtonText: {
-    color: '#8B5CF6',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  selectedImagesContainer: {
-    backgroundColor: '#1F2937',
-    borderRadius: 12,
-    padding: 16,
-  },
-  selectedImagesTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  imagesScrollView: {
-    marginBottom: 12,
-  },
-  imagePreviewContainer: {
-    marginRight: 12,
-    position: 'relative',
-  },
-  imagePreview: {
-    width: 120,
-    height: 90,
-    borderRadius: 8,
-    backgroundColor: '#374151',
-  },
-  primaryBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: '#10B981',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  primaryBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  imageActions: {
-    marginTop: 8,
-    gap: 4,
-  },
-  setPrimaryButton: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    alignItems: 'center',
-  },
-  setPrimaryButtonText: {
-    color: '#D1D5DB',
-    fontSize: 10,
-  },
-  removeImageButton: {
-    backgroundColor: '#EF444420',
-    padding: 6,
-    borderRadius: 6,
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 4,
   },
   uploadingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#374151',
+    marginBottom: 16,
   },
   uploadingText: {
     color: '#8B5CF6',
     fontSize: 14,
+  },
+  modalFooter: {
+    marginBottom: 20,
+  },
+  requiredNote: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    textAlign: 'center',
   },
 });

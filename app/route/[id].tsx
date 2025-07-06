@@ -8,10 +8,14 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
+  Share,
+  Linking,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, Star, MapPin, Clock, Mountain, Route } from 'lucide-react-native';
+import { ArrowLeft, Heart, Star, MapPin, Clock, Mountain, Route, Share2, Flag, X } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
@@ -59,6 +63,9 @@ export default function RouteDetailScreen() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const { user } = useAuth();
   const { t } = useI18n();
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportText, setReportText] = useState('');
+  const [reportCategory, setReportCategory] = useState('');
 
   useEffect(() => {
     fetchRoute();
@@ -132,6 +139,81 @@ export default function RouteDetailScreen() {
     } catch (error) {
       console.error('Error toggling favorite:', error);
       Alert.alert('Error', 'Failed to update favorite');
+    }
+  };
+
+  const shareRoute = async () => {
+    if (!route) return;
+    
+    try {
+      const shareOptions = {
+        message: `Mira esta ruta que encontré: ${route.name}\n\nDistancia: ${route.distance}km\nDificultad: ${getDifficultyText(route.difficulty)}\n\nDescripción: ${route.description.substring(0, 100)}...`,
+        url: `https://tusitio.com/rutas/${route.id}`,
+        title: `Ruta: ${route.name}`,
+      };
+
+      await Share.share(shareOptions);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo compartir la ruta');
+    }
+  };
+
+  const shareOnWhatsApp = async () => {
+    if (!route) return;
+    
+    const url = `whatsapp://send?text=Mira esta ruta que encontré: ${route.name} - ${route.distance}km, Dificultad: ${getDifficultyText(route.difficulty)}. Más info: https://tusitio.com/rutas/${route.id}`;
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert('Error', 'WhatsApp no está instalado');
+    }
+  };
+
+  const shareOnTelegram = async () => {
+    if (!route) return;
+    
+    const url = `tg://msg?text=Mira esta ruta que encontré: ${route.name} - ${route.distance}km, Dificultad: ${getDifficultyText(route.difficulty)}. Más info: https://tusitio.com/rutas/${route.id}`;
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert('Error', 'Telegram no está instalado');
+    }
+  };
+
+  const openReportModal = () => {
+    if (!user) {
+      Alert.alert('Error', 'Debes iniciar sesión para reportar un problema');
+      return;
+    }
+    setReportModalVisible(true);
+  };
+
+  const submitReport = async () => {
+    if (!reportCategory || !reportText) {
+      Alert.alert('Error', 'Por favor selecciona una categoría y describe el problema');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('route_reports')
+        .insert({
+          route_id: id,
+          user_id: user?.id,
+          category: reportCategory,
+          description: reportText,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      Alert.alert('Reporte enviado', 'Gracias por reportar el problema. Lo revisaremos pronto.');
+      setReportModalVisible(false);
+      setReportText('');
+      setReportCategory('');
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      Alert.alert('Error', 'No se pudo enviar el reporte');
     }
   };
 
@@ -234,13 +316,27 @@ export default function RouteDetailScreen() {
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <ArrowLeft size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.favoriteButton} onPress={toggleFavorite}>
-              <Heart
-                size={24}
-                color={isFavorite ? "#EF4444" : "#FFFFFF"}
-                fill={isFavorite ? "#EF4444" : "transparent"}
-              />
-            </TouchableOpacity>
+            <View style={styles.rightHeaderButtons}>
+              <TouchableOpacity 
+                style={styles.shareButton} 
+                onPress={shareRoute}
+              >
+                <Share2 size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.reportButton} 
+                onPress={openReportModal}
+              >
+                <Flag size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.favoriteButton} onPress={toggleFavorite}>
+                <Heart
+                  size={24}
+                  color={isFavorite ? "#EF4444" : "#FFFFFF"}
+                  fill={isFavorite ? "#EF4444" : "transparent"}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Image Indicators */}
@@ -419,12 +515,86 @@ export default function RouteDetailScreen() {
       {/* Bottom Bar */}
       <View style={styles.bottomBar}>
         <Button
-          title={t('route.save')}
+          title={isFavorite ? t('route.saved') : t('route.save')}
           onPress={toggleFavorite}
           variant={isFavorite ? "secondary" : "primary"}
           style={styles.saveButton}
         />
       </View>
+
+      {/* Report Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={reportModalVisible}
+        onRequestClose={() => {
+          setReportModalVisible(false);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reportar problema</Text>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setReportModalVisible(false)}
+              >
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalSubtitle}>Selecciona el tipo de problema:</Text>
+            
+            <View style={styles.categoryButtons}>
+              <TouchableOpacity 
+                style={[
+                  styles.categoryButton,
+                  reportCategory === 'danger' && styles.categoryButtonSelected
+                ]}
+                onPress={() => setReportCategory('danger')}
+              >
+                <Text style={styles.categoryButtonText}>Peligro en la ruta</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.categoryButton,
+                  reportCategory === 'incorrect_info' && styles.categoryButtonSelected
+                ]}
+                onPress={() => setReportCategory('incorrect_info')}
+              >
+                <Text style={styles.categoryButtonText}>Información incorrecta</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.categoryButton,
+                  reportCategory === 'other' && styles.categoryButtonSelected
+                ]}
+                onPress={() => setReportCategory('other')}
+              >
+                <Text style={styles.categoryButtonText}>Otro problema</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalSubtitle}>Describe el problema:</Text>
+            <TextInput
+              style={styles.reportInput}
+              multiline
+              numberOfLines={4}
+              placeholder="Proporciona detalles sobre el problema que encontraste..."
+              value={reportText}
+              onChangeText={setReportText}
+            />
+            
+            <Button
+              title="Enviar reporte"
+              onPress={submitReport}
+              style={styles.submitButton}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -479,6 +649,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 20,
     padding: 8,
+  },
+  rightHeaderButtons: {
+    flexDirection: 'row',
+  },
+  shareButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 8,
+    marginRight: 8,
+  },
+  reportButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 8,
+    marginRight: 8,
   },
   favoriteButton: {
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -742,7 +927,87 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#374151',
   },
+  shareButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  socialShareButton: {
+    backgroundColor: '#1E40AF',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flex: 1,
+    marginHorizontal: 4,
+    alignItems: 'center',
+  },
+  socialShareText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
   saveButton: {
+    width: '100%',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#1F2937',
+    borderRadius: 16,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalSubtitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  categoryButtons: {
+    marginBottom: 16,
+  },
+  categoryButton: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  categoryButtonSelected: {
+    backgroundColor: '#4ADE80',
+  },
+  categoryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  reportInput: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#FFFFFF',
+    minHeight: 100,
+    marginBottom: 16,
+    textAlignVertical: 'top',
+  },
+  submitButton: {
     width: '100%',
   },
 });

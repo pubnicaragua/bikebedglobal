@@ -293,32 +293,6 @@ export default function AdminDashboardScreen() {
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Otras Acciones</Text>
           
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => router.push('/')}
-          >
-            <View style={styles.actionIcon}>
-              <Home size={20} color="#10B981" />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Gestionar Alojamientos</Text>
-              <Text style={styles.actionSubtitle}>Administrar propiedades registradas</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => router.push('/')}
-          >
-            <View style={styles.actionIcon}>
-              <Bike size={20} color="#10B981" />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Gestionar Bicicletas</Text>
-              <Text style={styles.actionSubtitle}>Administrar flota de bicicletas</Text>
-            </View>
-          </TouchableOpacity>
-
           {stats.unreadMessages > 0 && (
             <TouchableOpacity 
               style={styles.actionCard}
@@ -351,22 +325,6 @@ export default function AdminDashboardScreen() {
               <Text style={styles.actionSubtitle}>Ajustes generales de la plataforma</Text>
             </View>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.recentActivity}>
-          <Text style={styles.sectionTitle}>Actividad Reciente</Text>
-          <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Nuevo usuario registrado</Text>
-            <Text style={styles.activityTime}>Hace 15 minutos</Text>
-          </View>
-          <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Nueva ruta creada</Text>
-            <Text style={styles.activityTime}>Hace 2 horas</Text>
-          </View>
-          <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Reserva cancelada</Text>
-            <Text style={styles.activityTime}>Ayer</Text>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

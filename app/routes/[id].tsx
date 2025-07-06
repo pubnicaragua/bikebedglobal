@@ -9,10 +9,14 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  Modal,
+  TextInput,
+  Pressable,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ArrowLeft, Star, MapPin, Flag, Clock, Edit, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Star, MapPin, Flag, Clock, Edit, Trash2, Share2 } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -36,12 +40,29 @@ export const RouteDetailScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [route, setRoute] = useState<Route | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    distance: '',
+    elevation_gain: '',
+    difficulty: 'moderate' as 'easy' | 'moderate' | 'hard' | 'expert',
+    estimated_time: '',
+    start_location: '',
+    end_location: '',
+    is_loop: false,
+    is_active: true,
+  });
 
   const fetchRouteDetails = async () => {
     try {
       setLoading(true);
       
-      // Obtener detalles de la ruta
       const { data: routeData, error: routeError } = await supabase
         .from('routes')
         .select('*')
@@ -50,7 +71,6 @@ export const RouteDetailScreen = () => {
 
       if (routeError) throw routeError;
 
-      // Obtener imágenes de la ruta
       const { data: imagesData, error: imagesError } = await supabase
         .from('route_images')
         .select('image_url, is_primary')
@@ -58,9 +78,24 @@ export const RouteDetailScreen = () => {
 
       if (imagesError) console.error('Error fetching images:', imagesError);
 
-      setRoute({
+      const route = {
         ...routeData,
         images: imagesData || []
+      };
+
+      setRoute(route);
+      
+      setFormData({
+        name: routeData.name,
+        description: routeData.description,
+        distance: routeData.distance.toString(),
+        elevation_gain: routeData.elevation_gain?.toString() || '',
+        difficulty: routeData.difficulty,
+        estimated_time: routeData.estimated_time?.toString() || '',
+        start_location: routeData.start_location,
+        end_location: routeData.end_location,
+        is_loop: routeData.is_loop,
+        is_active: routeData.is_active,
       });
 
     } catch (error) {
@@ -74,6 +109,98 @@ export const RouteDetailScreen = () => {
   useEffect(() => {
     if (id) fetchRouteDetails();
   }, [id]);
+
+  const handleUpdateRoute = async () => {
+    if (!route) return;
+    
+    try {
+      setIsUpdating(true);
+      
+      const { error } = await supabase
+        .from('routes')
+        .update({
+          name: formData.name,
+          description: formData.description,
+          distance: parseFloat(formData.distance),
+          elevation_gain: formData.elevation_gain ? parseFloat(formData.elevation_gain) : null,
+          difficulty: formData.difficulty,
+          estimated_time: formData.estimated_time ? parseInt(formData.estimated_time) : null,
+          start_location: formData.start_location,
+          end_location: formData.end_location,
+          is_loop: formData.is_loop,
+          is_active: formData.is_active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', route.id);
+
+      if (error) throw error;
+
+      Alert.alert('Éxito', 'Ruta actualizada correctamente');
+      fetchRouteDetails();
+      setEditModalVisible(false);
+    } catch (error) {
+      console.error('Error updating route:', error);
+      Alert.alert('Error', 'No se pudo actualizar la ruta');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteRoute = async () => {
+    if (!route) return;
+    
+    try {
+      setIsDeleting(true);
+      
+      const { error: imagesError } = await supabase
+        .from('route_images')
+        .delete()
+        .eq('route_id', route.id);
+
+      if (imagesError) throw imagesError;
+
+      const { error } = await supabase
+        .from('routes')
+        .delete()
+        .eq('id', route.id);
+
+      if (error) throw error;
+
+      Alert.alert('Éxito', 'Ruta eliminada correctamente');
+      router.replace('/routes');
+    } catch (error) {
+      console.error('Error deleting route:', error);
+      Alert.alert('Error', 'No se pudo eliminar la ruta');
+    } finally {
+      setIsDeleting(false);
+      setDeleteModalVisible(false);
+    }
+  };
+
+  const handleShareRoute = async () => {
+    if (!route) return;
+
+    try {
+      const shareOptions = {
+        title: 'Compartir Ruta',
+        message: `¡Mira esta increíble ruta que encontré!\n\n` +
+                 `🏞️ ${route.name}\n\n` +
+                 `📝 Descripción: ${route.description || 'Sin descripción'}\n\n` +
+                 `📏 Distancia: ${route.distance} km\n` +
+                 `📈 Dificultad: ${route.difficulty.charAt(0).toUpperCase() + route.difficulty.slice(1)}\n` +
+                 `⏱️ Tiempo estimado: ${formatTime(route.estimated_time)}\n\n` +
+                 `📍 Punto de inicio: ${route.start_location}\n` +
+                 `🏁 Punto final: ${route.end_location}\n\n` +
+                 `¡Descarga la app para descubrir más rutas como esta!`,
+        url: route.images?.[0]?.image_url || 'https://tuaplicacion.com/rutas',
+      };
+
+      await Share.share(shareOptions);
+    } catch (error) {
+      console.error('Error sharing route:', error);
+      Alert.alert('Error', 'No se pudo compartir la ruta');
+    }
+  };
 
   const getDifficultyColor = () => {
     if (!route) return '#6B7280';
@@ -119,12 +246,23 @@ export const RouteDetailScreen = () => {
             <ArrowLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           
-          {/* Botones de acción (opcional, solo si el usuario es el creador) */}
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.editButton}>
+            <TouchableOpacity 
+              onPress={handleShareRoute} 
+              style={styles.shareButton}
+            >
+              <Share2 size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => setEditModalVisible(true)} 
+              style={styles.editButton}
+            >
               <Edit size={20} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteButton}>
+            <TouchableOpacity 
+              onPress={() => setDeleteModalVisible(true)} 
+              style={styles.deleteButton}
+            >
               <Trash2 size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -259,8 +397,211 @@ export const RouteDetailScreen = () => {
           )}
         </View>
       </ScrollView>
+
+      {/* Modal de Edición */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editModalVisible}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Editar Ruta</Text>
+            
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.inputLabel}>Nombre</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.name}
+                onChangeText={(text) => setFormData({...formData, name: text})}
+                placeholder="Nombre de la ruta"
+              />
+              
+              <Text style={styles.inputLabel}>Descripción</Text>
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                value={formData.description}
+                onChangeText={(text) => setFormData({...formData, description: text})}
+                placeholder="Descripción detallada"
+                multiline
+                numberOfLines={4}
+              />
+              
+              <View style={styles.rowInputs}>
+                <View style={styles.rowInput}>
+                  <Text style={styles.inputLabel}>Distancia (km)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.distance}
+                    onChangeText={(text) => setFormData({...formData, distance: text})}
+                    placeholder="0.0"
+                    keyboardType="numeric"
+                  />
+                </View>
+                
+                <View style={styles.rowInput}>
+                  <Text style={styles.inputLabel}>Elevación (m)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.elevation_gain}
+                    onChangeText={(text) => setFormData({...formData, elevation_gain: text})}
+                    placeholder="Opcional"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+              
+              <Text style={styles.inputLabel}>Dificultad</Text>
+              <View style={styles.difficultyButtons}>
+                {(['easy', 'moderate', 'hard', 'expert'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.difficultyButton,
+                      formData.difficulty === level && styles.selectedDifficulty,
+                      { borderColor: getDifficultyColorForLevel(level) }
+                    ]}
+                    onPress={() => setFormData({...formData, difficulty: level})}
+                  >
+                    <Text style={[
+                      styles.difficultyButtonText,
+                      { color: getDifficultyColorForLevel(level) },
+                      formData.difficulty === level && styles.selectedDifficultyText
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              <Text style={styles.inputLabel}>Tiempo estimado (minutos)</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.estimated_time}
+                onChangeText={(text) => setFormData({...formData, estimated_time: text})}
+                placeholder="Opcional"
+                keyboardType="numeric"
+              />
+              
+              <Text style={styles.inputLabel}>Ubicación de inicio</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.start_location}
+                onChangeText={(text) => setFormData({...formData, start_location: text})}
+                placeholder="Dirección o coordenadas"
+              />
+              
+              <Text style={styles.inputLabel}>Ubicación de fin</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.end_location}
+                onChangeText={(text) => setFormData({...formData, end_location: text})}
+                placeholder="Dirección o coordenadas"
+              />
+              
+              <View style={styles.switchContainer}>
+                <Text style={styles.switchLabel}>Ruta circular</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.switchButton,
+                    formData.is_loop && styles.switchButtonActive
+                  ]}
+                  onPress={() => setFormData({...formData, is_loop: !formData.is_loop})}
+                >
+                  <Text style={styles.switchText}>
+                    {formData.is_loop ? 'Sí' : 'No'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.switchContainer}>
+                <Text style={styles.switchLabel}>Activa</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.switchButton,
+                    formData.is_active && styles.switchButtonActive
+                  ]}
+                  onPress={() => setFormData({...formData, is_active: !formData.is_active})}
+                >
+                  <Text style={styles.switchText}>
+                    {formData.is_active ? 'Sí' : 'No'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+            
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.buttonText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleUpdateRoute}
+                disabled={isUpdating}
+              >
+                {isUpdating ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.buttonText}>Guardar Cambios</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Eliminación */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={deleteModalVisible}
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Eliminar Ruta</Text>
+            <Text style={styles.deleteText}>
+              ¿Estás seguro que deseas eliminar la ruta "{route.name}"? Esta acción no se puede deshacer.
+            </Text>
+            
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setDeleteModalVisible(false)}
+              >
+                <Text style={styles.buttonText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.deleteModalButton]}
+                onPress={handleDeleteRoute}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.buttonText}>Eliminar</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
+};
+
+const getDifficultyColorForLevel = (level: 'easy' | 'moderate' | 'hard' | 'expert') => {
+  switch (level) {
+    case 'easy': return '#10B981';
+    case 'moderate': return '#F59E0B';
+    case 'hard': return '#EF4444';
+    case 'expert': return '#7C3AED';
+    default: return '#6B7280';
+  }
 };
 
 const styles = StyleSheet.create({
@@ -294,6 +635,11 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: 12,
+  },
+  shareButton: {
+    backgroundColor: 'rgba(16, 185, 129, 0.7)',
+    borderRadius: 20,
+    padding: 8,
   },
   editButton: {
     backgroundColor: 'rgba(139, 92, 246, 0.7)',
@@ -447,6 +793,136 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 8,
     marginRight: 10,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalScroll: {
+    maxHeight: '70%',
+  },
+  inputLabel: {
+    color: '#D1D5DB',
+    fontSize: 14,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  input: {
+    backgroundColor: '#374151',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  multilineInput: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  rowInputs: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  rowInput: {
+    flex: 1,
+  },
+  difficultyButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginVertical: 8,
+  },
+  difficultyButton: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  selectedDifficulty: {
+    backgroundColor: '#8B5CF6',
+    borderColor: '#8B5CF6',
+  },
+  difficultyButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  selectedDifficultyText: {
+    color: '#FFFFFF',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: 12,
+  },
+  switchLabel: {
+    color: '#D1D5DB',
+    fontSize: 16,
+  },
+  switchButton: {
+    backgroundColor: '#374151',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  switchButtonActive: {
+    backgroundColor: '#8B5CF6',
+  },
+  switchText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 10,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#374151',
+  },
+  saveButton: {
+    backgroundColor: '#8B5CF6',
+  },
+  deleteModalButton: {
+    backgroundColor: '#EF4444',
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  deleteText: {
+    color: '#D1D5DB',
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 20,
+    textAlign: 'center',
   },
 });
 

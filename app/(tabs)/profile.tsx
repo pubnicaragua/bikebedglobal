@@ -21,6 +21,7 @@ import {
   Shield,
   Headphones,
   BellRing,
+  Search,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
@@ -130,6 +131,11 @@ export default function ProfileScreen() {
       icon: Headphones,
       title: t('profile.contactSupport'),
       onPress: () => router.push('/support/support'),
+    },
+    {
+      icon: Search,
+      title: 'Consultar historial de pago',
+      onPress: () => router.push('/profile'),
     },
     {
       icon: AlertTriangle,
