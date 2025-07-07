@@ -246,7 +246,7 @@ export default function AdminDashboardScreen() {
 
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => router.push('/')}
+            onPress={() => router.push('/notification')}
           >
             <View style={styles.actionIcon}>
               <Bell size={20} color="#EC4899" />
