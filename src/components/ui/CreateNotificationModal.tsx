@@ -1,14 +1,24 @@
-import React, { useState } from 'react';
-import { View, Text, Modal, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Modal, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { X } from 'lucide-react-native';
+import { supabase } from '../../services/supabase'; // Asegúrate de que la ruta a supabase sea correcta
 
 type NotificationType = 'booking' | 'message' | 'system' | 'payment' | 'info' | 'warning' | 'alert' | 'maintenance' | 'update';
-// Eliminamos NotificationPriority ya que no se usará
+
+// Interfaz para un perfil simplificado
+interface UserProfile {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+}
 
 interface NotificationModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (notification: any) => void;
+  // onSubmit ahora podría ser asíncrono si la inserción se maneja fuera
+  onSubmit: (notification: any) => Promise<void>; 
   isGlobal?: boolean;
 }
 
@@ -21,52 +31,138 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [notificationType, setNotificationType] = useState<NotificationType>('info');
-  const [userId, setUserId] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isLoadingSubmit, setIsLoadingSubmit] = useState(false); // Renombrado para claridad
   const [error, setError] = useState('');
-  // Eliminamos el estado 'priority'
-  // Eliminamos el estado 'expiresAt' y 'showDatePicker'
   const [targetRoles, setTargetRoles] = useState<string[]>([]);
-  const availableRoles = ['admin', 'user', 'manager'];
+  // 'manager' no está en tu esquema de profiles, pero lo mantengo si lo usas en alguna parte.
+  const availableRoles = ['admin', 'user', 'host']; // Ajustado a roles de tu esquema profiles
+
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true); // Renombrado para claridad
+  const [usersError, setUsersError] = useState('');
+
+  // Efecto para cargar los usuarios cuando el modal se hace visible
+  useEffect(() => {
+    if (visible && !isGlobal) {
+      fetchUsers();
+    } else if (visible && isGlobal) {
+      // Si es global, reiniciamos el estado de usuario, ya que no se selecciona uno
+      setUserId(null); 
+    }
+  }, [visible, isGlobal]);
+
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
+    setUsersError('');
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, email')
+        .order('first_name', { ascending: true });
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (data) {
+        setUsers(data);
+        // Si hay usuarios y ninguno está seleccionado (o el seleccionado ya no existe), selecciona el primero
+        if (data.length > 0 && (!userId || !data.some(u => u.id === userId))) {
+          setUserId(data[0].id);
+        }
+      }
+    } catch (e: any) {
+      console.error('Error cargando usuarios:', e.message);
+      setUsersError('Error al cargar usuarios: ' + e.message);
+      Alert.alert('Error', 'No se pudieron cargar los usuarios: ' + e.message); // Alerta al usuario
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
 
   const resetForm = () => {
     setTitle('');
     setMessage('');
     setNotificationType('info');
-    setUserId('');
+    setUserId(users.length > 0 ? users[0].id : null);
     setError('');
-    // Eliminamos el reseteo de 'priority'
-    // Eliminamos el reseteo de 'expiresAt'
     setTargetRoles([]);
+    setIsLoadingSubmit(false); // Resetea el estado de envío
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => { // Hacemos la función asíncrona
+    setError(''); // Limpia errores previos
     if (!title || !message) {
       setError('El título y el mensaje son obligatorios.');
       return;
     }
 
-    if (!isGlobal && !userId) {
-      setError('El ID de usuario es obligatorio para notificaciones individuales.');
+    // Validación para notificaciones individuales: userId es obligatorio y debe ser válido
+    if (!isGlobal && (!userId || users.length === 0)) {
+      setError('Debe seleccionar un usuario para notificaciones individuales.');
       return;
     }
+    
+    // Si es global y no hay roles seleccionados, quizás quieras una validación o enviar a todos
+    if (isGlobal && targetRoles.length === 0) {
+      // Opción 1: Considerar error
+      setError('Para notificaciones globales, debe seleccionar al menos un rol destino.');
+      return;
+      // Opción 2: Omitir target_roles si está vacío, enviando potencialmente a todos si la lógica lo interpreta así.
+      // Puedes adaptar esto según tu necesidad.
+    }
 
-    setLoading(true);
+
+    setIsLoadingSubmit(true); // Usamos el nuevo estado de carga
+
+    // *** BLOQUE DE DIAGNÓSTICO CRUCIAL ***
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error("Error al obtener la sesión ANTES de enviar:", sessionError);
+        setError("Error de sesión antes de enviar: " + sessionError.message);
+        setIsLoadingSubmit(false);
+        return;
+      }
+      if (!session || !session.user) {
+        console.error("No hay sesión activa ANTES de enviar. Sesión:", session);
+        setError("Debes iniciar sesión para crear notificaciones.");
+        setIsLoadingSubmit(false);
+        return;
+      }
+      console.log("Sesión activa ANTES de enviar. User ID:", session.user.id);
+      console.log("Token de acceso ANTES de enviar (últimos 10 caracteres):", session.access_token ? session.access_token.slice(-10) : 'No token');
+    } catch (e: any) {
+      console.error("Excepción al verificar sesión ANTES de enviar:", e.message);
+      setError("Error interno al verificar sesión.");
+      setIsLoadingSubmit(false);
+      return;
+    }
+    // *** FIN DEL BLOQUE DE DIAGNÓSTICO ***
 
     const notificationData = {
       title,
       message,
       notification_type: notificationType,
       ...(isGlobal ? {
-        // Eliminamos 'priority' de los datos enviados
-        // Eliminamos 'expires_at' de los datos enviados
+        // Asegúrate de que esta columna exista en tu DB (TEXT[])
         target_roles: targetRoles.length > 0 ? targetRoles : null
       } : {
-        user_id: userId
+        user_id: userId // Enviamos el userId seleccionado del Picker
       })
     };
 
-    onSubmit(notificationData);
+    try {
+      await onSubmit(notificationData); // onSubmit ahora debe ser asíncrono y manejar la inserción
+      resetForm(); // Resetea el formulario solo si el envío fue exitoso
+      onClose();   // Cierra el modal solo si el envío fue exitoso
+    } catch (submitError: any) {
+      console.error("Error al enviar notificación desde el modal:", submitError.message);
+      setError("Error al enviar notificación: " + submitError.message);
+    } finally {
+      setIsLoadingSubmit(false);
+    }
   };
 
   const toggleRole = (role: string) => {
@@ -76,8 +172,6 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         : [...prev, role]
     );
   };
-
-  // Eliminamos la función 'onDateChange'
 
   return (
     <Modal
@@ -107,67 +201,56 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
+            
+            {usersError ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{usersError}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Tipo de Notificación</Text>
               <ScrollView horizontal style={styles.typeScroll}>
-                {isGlobal ? (
-                  <>
+                {/* Tipos de notificación ajustados a tu necesidad, por ejemplo, 'info', 'warning', 'alert' para globales */}
+                {(isGlobal ? ['info', 'warning', 'alert'] : ['booking', 'message', 'system', 'payment', 'info', 'warning', 'alert', 'maintenance', 'update']).map(type => (
                     <TouchableOpacity
-                      style={[styles.typeButton, notificationType === 'info' && styles.activeType]}
-                      onPress={() => setNotificationType('info')}
+                      key={type}
+                      style={[styles.typeButton, notificationType === type && styles.activeType]}
+                      onPress={() => setNotificationType(type as NotificationType)}
                     >
-                      <Text style={notificationType === 'info' ? styles.activeTypeText : styles.typeButtonText}>Información</Text>
+                      <Text style={notificationType === type ? styles.activeTypeText : styles.typeButtonText}>
+                        {type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ')}
+                      </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.typeButton, notificationType === 'warning' && styles.activeType]}
-                      onPress={() => setNotificationType('warning')}
-                    >
-                      <Text style={notificationType === 'warning' ? styles.activeTypeText : styles.typeButtonText}>Advertencia</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.typeButton, notificationType === 'alert' && styles.activeType]}
-                      onPress={() => setNotificationType('alert')}
-                    >
-                      <Text style={notificationType === 'alert' ? styles.activeTypeText : styles.typeButtonText}>Alerta</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.typeButton, notificationType === 'booking' && styles.activeType]}
-                      onPress={() => setNotificationType('booking')}
-                    >
-                      <Text style={notificationType === 'booking' ? styles.activeTypeText : styles.typeButtonText}>Reserva</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.typeButton, notificationType === 'message' && styles.activeType]}
-                      onPress={() => setNotificationType('message')}
-                    >
-                      <Text style={notificationType === 'message' ? styles.activeTypeText : styles.typeButtonText}>Mensaje</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.typeButton, notificationType === 'system' && styles.activeType]}
-                      onPress={() => setNotificationType('system')}
-                    >
-                      <Text style={notificationType === 'system' ? styles.activeTypeText : styles.typeButtonText}>Sistema</Text>
-                    
-                    </TouchableOpacity>
-                  </>
-                )}
+                ))}
               </ScrollView>
             </View>
 
             {!isGlobal && (
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>ID de Usuario</Text>
-                <TextInput
-                  style={styles.input}
-                  value={userId}
-                  onChangeText={setUserId}
-                  placeholder="Ingrese el ID del usuario"
-                  placeholderTextColor="#9CA3AF"
-                />
+                <Text style={styles.label}>Seleccionar Usuario</Text>
+                {isLoadingUsers ? (
+                  <ActivityIndicator size="small" color="#4ADE80" />
+                ) : users.length === 0 ? (
+                  <Text style={styles.emptyUsersText}>No se encontraron usuarios.</Text>
+                ) : (
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={userId}
+                      onValueChange={(itemValue: string | null) => setUserId(itemValue)}
+                      style={styles.picker}
+                      itemStyle={styles.pickerItem}
+                    >
+                      {users.map((u) => (
+                        <Picker.Item
+                          key={u.id}
+                          label={`${u.first_name || ''} ${u.last_name || ''} (${u.email})`.trim()}
+                          value={u.id}
+                        />
+                      ))}
+                    </Picker>
+                  </View>
+                )}
               </View>
             )}
 
@@ -196,44 +279,22 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
             </View>
 
             {isGlobal && (
-              <>
-                {/* Eliminamos el bloque de selección de prioridad */}
-                {/* <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Prioridad</Text>
-                  <View style={styles.priorityContainer}>
-                    {(['low', 'normal', 'high', 'critical'] as NotificationPriority[]).map((p) => (
-                      <TouchableOpacity
-                        key={p}
-                        style={[styles.priorityButton, priority === p && styles.activePriority]}
-                        onPress={() => setPriority(p)}
-                      >
-                        <Text style={priority === p ? styles.activePriorityText : styles.priorityText}>
-                          {p === 'low' ? 'Baja' : p === 'normal' ? 'Normal' : p === 'high' ? 'Alta' : 'Crítica'}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View> */}
-
-                {/* Ya habíamos eliminado la fecha de expiración */}
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Roles Destino (opcional)</Text>
-                  <View style={styles.rolesContainer}>
-                    {availableRoles.map(role => (
-                      <TouchableOpacity
-                        key={role}
-                        style={[styles.roleButton, targetRoles.includes(role) && styles.activeRole]}
-                        onPress={() => toggleRole(role)}
-                      >
-                        <Text style={targetRoles.includes(role) ? styles.activeRoleText : styles.roleText}>
-                          {role}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Roles Destino (seleccione uno o más)</Text>
+                <View style={styles.rolesContainer}>
+                  {availableRoles.map(role => (
+                    <TouchableOpacity
+                      key={role}
+                      style={[styles.roleButton, targetRoles.includes(role) && styles.activeRole]}
+                      onPress={() => toggleRole(role)}
+                    >
+                      <Text style={targetRoles.includes(role) ? styles.activeRoleText : styles.roleText}>
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              </>
+              </View>
             )}
 
             <View style={styles.buttonContainer}>
@@ -243,17 +304,17 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                   onClose();
                   resetForm();
                 }}
-                disabled={loading}
+                disabled={isLoadingSubmit} // Usa el nuevo estado de carga
               >
                 <Text style={styles.buttonText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.button, styles.submitButton, loading && styles.disabledButton]}
+                style={[styles.button, styles.submitButton, (isLoadingSubmit || isLoadingUsers) && styles.disabledButton]}
                 onPress={handleSubmit}
-                disabled={loading}
+                disabled={isLoadingSubmit || isLoadingUsers} // Deshabilita si se está enviando o cargando usuarios
               >
                 <Text style={styles.buttonText}>
-                  {loading ? 'Enviando...' : 'Enviar Notificación'}
+                  {isLoadingSubmit ? 'Enviando...' : 'Enviar Notificación'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -378,7 +439,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
-
   rolesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -403,6 +463,27 @@ const styles = StyleSheet.create({
   activeRoleText: {
     color: '#FFFFFF',
     fontWeight: 'bold',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderRadius: 5,
+    backgroundColor: '#111827',
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    color: '#FFFFFF',
+  },
+  pickerItem: {
+    color: '#FFFFFF',
+    backgroundColor: '#1F2937',
+  },
+  emptyUsersText: {
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 10,
   },
 });
 
