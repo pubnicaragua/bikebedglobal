@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Home, DollarSign, Star, MessageCircle, Calendar, Bike, LogOut, History } from 'lucide-react-native'; // Importa History
+import { Home, DollarSign, Star, MessageCircle, Calendar, Bike, LogOut, History, Coffee } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
@@ -68,12 +68,12 @@ export default function HostDashboardScreen() {
 
   const handleSignOut = () => {
     Alert.alert(
-      t('profile.signOut') || 'Cerrar Sesión', // Fallback para la traducción
-      t('profile.signOutConfirmation') || '¿Estás seguro de que quieres cerrar sesión?', // Fallback
+      t('profile.signOut') || 'Cerrar Sesión',
+      t('profile.signOutConfirmation') || '¿Estás seguro de que quieres cerrar sesión?',
       [
-        { text: t('common.cancel') || 'Cancelar', style: 'cancel' }, // Fallback
+        { text: t('common.cancel') || 'Cancelar', style: 'cancel' },
         {
-          text: t('profile.signOut') || 'Cerrar Sesión', // Fallback
+          text: t('profile.signOut') || 'Cerrar Sesión',
           style: 'destructive',
           onPress: async () => {
             await signOut();
@@ -88,12 +88,14 @@ export default function HostDashboardScreen() {
     if (!user) return;
 
     try {
+      // Obtener estadísticas de alojamientos
       const { count: accommodationsCount } = await supabase
         .from('accommodations')
         .select('*', { count: 'exact', head: true })
         .eq('host_id', user.id)
         .eq('is_active', true);
 
+      // Obtener estadísticas de reservas
       const { data: bookings } = await supabase
         .from('bookings')
         .select('total_price, status, accommodations!inner(host_id)')
@@ -103,6 +105,7 @@ export default function HostDashboardScreen() {
         return booking.status === 'confirmed' ? sum + booking.total_price : sum;
       }, 0) || 0;
 
+      // Obtener estadísticas de reseñas
       const { data: reviews } = await supabase
         .from('accommodation_reviews')
         .select('rating, accommodations!inner(host_id)')
@@ -112,6 +115,7 @@ export default function HostDashboardScreen() {
         ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
         : 0;
 
+      // Obtener mensajes no leídos
       const { count: unreadCount } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
@@ -123,7 +127,7 @@ export default function HostDashboardScreen() {
         totalBookings: bookings?.length || 0,
         totalRevenue,
         averageRating,
-        unreadMessages: unreadCount || 0,
+        unreadMessages: unreadCount || 0
       });
     } catch (error) {
       console.error('Error fetching host stats:', error);
@@ -136,7 +140,7 @@ export default function HostDashboardScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>{t('common.loading') || 'Cargando...'}</Text> {/* Fallback */}
+          <Text style={styles.loadingText}>{t('common.loading') || 'Cargando...'}</Text>
         </View>
       </SafeAreaView>
     );
@@ -146,8 +150,8 @@ export default function HostDashboardScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
         <View style={styles.headerTextContainer}>
-          <Text style={styles.title}>{t('hostDashboard.title') || 'Panel de Anfitrión'}</Text> {/* Fallback */}
-          <Text style={styles.subtitle}>{t('hostDashboard.subtitle') || 'Gestiona tus alojamientos y reservas'}</Text> {/* Fallback */}
+          <Text style={styles.title}>{t('hostDashboard.title') || 'Panel de Anfitrión'}</Text>
+          <Text style={styles.subtitle}>{t('hostDashboard.subtitle') || 'Gestiona tus alojamientos y reservas'}</Text>
         </View>
         <View style={styles.headerButtonsContainer}>
           <LanguageToggle />
@@ -233,21 +237,18 @@ export default function HostDashboardScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Nuevo botón: Ver Historial de Alquileres */}
           <TouchableOpacity 
             style={styles.actionCard}
             onPress={() => router.push('/')}
           >
             <View style={styles.actionIcon}>
-              <History size={20} color="#4ADE80" /> {/* Icono de historial */}
+              <History size={20} color="#4ADE80" />
             </View>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>{t('hostDashboard.viewRentalHistory') || 'Ver Historial de Alquileres'}</Text>
               <Text style={styles.actionSubtitle}>{t('hostDashboard.rentalHistorySubtitle') || 'Revisa todas tus transacciones pasadas'}</Text>
             </View>
           </TouchableOpacity>
-          {/* Fin del nuevo botón */}
-
           {stats.unreadMessages > 0 && (
             <TouchableOpacity 
               style={styles.actionCard}

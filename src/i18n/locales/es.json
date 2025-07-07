@@ -331,6 +331,8 @@
     "manageAccommodationsSubtitle": "Agregar, editar o desactivar propiedades",
     "manageBikesTitle": "Gestionar Bicicletas",
     "manageBikesSubtitle": "Administrar tu flota de bicicletas",
+    "manageAmenities":"Gestionar Amenidades", 
+    "manageAmenitiesSubtitle":"Gestsiona las Amenidades",
     "viewBookingsTitle": "Ver Reservas",
     "viewBookingsSubtitle": "Revisar y gestionar reservas pendientes",
     "viewRentalHistory": "Ver Historial de Alquileres",
@@ -344,5 +346,11 @@
     "yesterday": "Ayer",
     "paymentProcessed": "Pago procesado",
     "threeDaysAgo": "Hace 3 días"
+  },
+  "amenities": {
+    "title": "Gestionar Amenidades",
+    "description": "Selecciona las amenidades que ofrece tu alojamiento para que los huéspedes puedan encontrarte más fácilmente.",
+    "availableAmenities": "Amenidades disponibles",
+    "saveChanges": "Guardar cambios"
   }
 }

@@ -12,6 +12,8 @@ import {
   TextInput,
   Modal,
   Pressable,
+  Switch,
+  FlatList,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,13 +33,11 @@ import {
   Plus,
   X,
   MessageSquare,
+  Check,
 } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { Button } from '../../src/components/ui/Button';
-// Importa ResennaModal si lo vas a usar como un componente separado,
-// pero la lógica de la modal de reseña está ahora en este archivo.
-// import ResennaModal from '../../src/components/ui/ResennaModal'; 
 
 const { width } = Dimensions.get('window');
 
@@ -113,7 +113,9 @@ interface Accommodation {
 
 export default function AccommodationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [accommodation, setAccommodation] = useState<Accommodation | null>(null);
+  const [accommodation, setAccommodation] = useState<Accommodation | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -123,9 +125,38 @@ export default function AccommodationDetailScreen() {
   const [hasBooked, setHasBooked] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
-  const [responseTexts, setResponseTexts] = useState<Record<string, string>>({});
-  const [responseLoading, setResponseLoading] = useState<Record<string, boolean>>({});
+  const [responseTexts, setResponseTexts] = useState<Record<string, string>>(
+    {}
+  );
+  const [responseLoading, setResponseLoading] = useState<
+    Record<string, boolean>
+  >({});
   const { user } = useAuth();
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [newAccommodation, setNewAccommodation] = useState({
+    name: '',
+    description: '',
+    location: '',
+    address: '',
+    price_per_night: '',
+    capacity: '',
+    bedrooms: '',
+    bathrooms: '',
+    has_wifi: false,
+    has_kitchen: false,
+    has_parking: false,
+    has_bike_storage: false,
+    has_bike_rental: false,
+    has_bike_tools: false,
+    has_laundry: false,
+  });
+  const [customAmenities, setCustomAmenities] = useState<
+    { name: string; type: string }[]
+  >([]);
+  const [newAmenityName, setNewAmenityName] = useState('');
+  const [newAmenityType, setNewAmenityType] = useState('');
+  const [isAmenityModalVisible, setIsAmenityModalVisible] = useState(false);
+  const [loadingCreate, setLoadingCreate] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -142,11 +173,14 @@ export default function AccommodationDetailScreen() {
       setLoading(true);
       setError(null);
 
-      const { data: accommodationData, error: accommodationError } = await supabase
-        .from('accommodations')
-        .select('*, accommodation_images(*), accommodation_amenities(*), accommodation_reviews(*)')
-        .eq('id', id)
-        .single();
+      const { data: accommodationData, error: accommodationError } =
+        await supabase
+          .from('accommodations')
+          .select(
+            '*, accommodation_images(*), accommodation_amenities(*), accommodation_reviews(*)'
+          )
+          .eq('id', id)
+          .single();
 
       if (accommodationError) throw accommodationError;
       if (!accommodationData) throw new Error('Alojamiento no encontrado');
@@ -161,7 +195,9 @@ export default function AccommodationDetailScreen() {
 
       const { data: reviewsWithResponses, error: reviewsError } = await supabase
         .from('accommodation_reviews')
-        .select('*, review_responses(*, profiles:responder_id(id, first_name, last_name, avatar_url))')
+        .select(
+          '*, review_responses(*, profiles:responder_id(id, first_name, last_name, avatar_url))'
+        )
         .eq('accommodation_id', id);
 
       if (reviewsError) throw reviewsError;
@@ -178,29 +214,40 @@ export default function AccommodationDetailScreen() {
         if (!profilesError) reviewerProfiles = profilesData || [];
       }
 
-      const normalizedImages = accommodationData.accommodation_images?.length > 0
-        ? accommodationData.accommodation_images
-        : [{ id: 'default', image_url: 'https://via.placeholder.com/400x300?text=No+Image', is_primary: true }];
+      const normalizedImages =
+        accommodationData.accommodation_images?.length > 0
+          ? accommodationData.accommodation_images
+          : [
+              {
+                id: 'default',
+                image_url: 'https://via.placeholder.com/400x300?text=No+Image',
+                is_primary: true,
+              },
+            ];
 
-      const reviewsWithProfilesAndResponses = reviewsWithResponses?.map((review) => ({
-        ...review,
-        profile: reviewerProfiles.find((p) => p.id === review.user_id) || {
-          id: review.user_id,
-          first_name: 'Anónimo',
-          last_name: '',
-          avatar_url: '',
-        },
-        responses: review.review_responses?.map((response: { profiles: any; responder_id: any; }) => ({
-          ...response,
-          profile: response.profiles || {
-            id: response.responder_id,
+      const reviewsWithProfilesAndResponses =
+        reviewsWithResponses?.map((review) => ({
+          ...review,
+          profile: reviewerProfiles.find((p) => p.id === review.user_id) || {
+            id: review.user_id,
             first_name: 'Anónimo',
             last_name: '',
             avatar_url: '',
           },
-        })) || [],
-        showResponses: false,
-      })) || [];
+          responses:
+            review.review_responses?.map(
+              (response: { profiles: any; responder_id: any }) => ({
+                ...response,
+                profile: response.profiles || {
+                  id: response.responder_id,
+                  first_name: 'Anónimo',
+                  last_name: '',
+                  avatar_url: '',
+                },
+              })
+            ) || [],
+          showResponses: false,
+        })) || [];
 
       setAccommodation({
         ...accommodationData,
@@ -243,14 +290,13 @@ export default function AccommodationDetailScreen() {
     if (!user || !id) return;
 
     try {
-      // Busca si el usuario tiene al menos una reserva "completed" para este alojamiento
       const { data, error } = await supabase
         .from('bookings')
         .select('id')
         .eq('user_id', user.id)
         .eq('accommodation_id', id)
         .eq('status', 'completed')
-        .limit(1); // Limita a 1 para mayor eficiencia, solo necesitamos saber si existe
+        .limit(1);
 
       if (error) throw error;
       setHasBooked(data && data.length > 0);
@@ -369,14 +415,16 @@ export default function AccommodationDetailScreen() {
 
   const handleCreateReview = async () => {
     if (!user || !id || reviewRating === 0) {
-      Alert.alert('Error', 'Por favor, selecciona una calificación para tu reseña.');
+      Alert.alert(
+        'Error',
+        'Por favor, selecciona una calificación para tu reseña.'
+      );
       return;
     }
 
     try {
       setReviewLoading(true);
 
-      // 1. Verificar si el usuario ya publicó una reseña para este alojamiento
       const { data: existingReview, error: reviewError } = await supabase
         .from('accommodation_reviews')
         .select('id')
@@ -393,7 +441,6 @@ export default function AccommodationDetailScreen() {
         return;
       }
 
-      // 2. Verificar si el usuario ha completado una reserva para este alojamiento
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .select('id')
@@ -411,31 +458,28 @@ export default function AccommodationDetailScreen() {
         return;
       }
 
-      // 3. Insertar la reseña en la base de datos
       const { error } = await supabase.from('accommodation_reviews').insert({
-        booking_id: bookingData.id, // Usar el ID de la reserva completada
+        booking_id: bookingData.id,
         user_id: user.id,
         accommodation_id: id,
         rating: reviewRating,
-        comment: reviewText || null, // Guardar null si el comentario está vacío
+        comment: reviewText || null,
       });
 
       if (error) throw error;
 
-      // 4. Si la inserción fue exitosa, recargar los datos del alojamiento
       await fetchAccommodation();
-      setReviewModalVisible(false); // Cerrar la modal
-      setReviewText(''); // Limpiar el texto
-      setReviewRating(0); // Resetear la calificación
+      setReviewModalVisible(false);
+      setReviewText('');
+      setReviewRating(0);
       Alert.alert('Éxito', 'Tu reseña ha sido publicada.');
-    } catch (error: any) { // Usar 'any' para manejar el error de Supabase
+    } catch (error: any) {
       console.error('Error al crear reseña:', error.message);
       Alert.alert('Error', 'No se pudo publicar la reseña: ' + error.message);
     } finally {
       setReviewLoading(false);
     }
   };
-
 
   const handleSubmitResponse = async (reviewId: string) => {
     if (!user || !responseTexts[reviewId]?.trim()) return;
@@ -460,6 +504,112 @@ export default function AccommodationDetailScreen() {
     } finally {
       setResponseLoading((prev) => ({ ...prev, [reviewId]: false }));
     }
+  };
+
+  const handleCreateAccommodation = async () => {
+    if (!user) {
+      Alert.alert('Error', 'Debes iniciar sesión para crear un alojamiento');
+      return;
+    }
+
+    if (
+      !newAccommodation.name ||
+      !newAccommodation.description ||
+      !newAccommodation.location
+    ) {
+      Alert.alert('Error', 'Por favor completa los campos obligatorios');
+      return;
+    }
+
+    try {
+      setLoadingCreate(true);
+
+      const { data: accommodationData, error: accommodationError } =
+        await supabase
+          .from('accommodations')
+          .insert({
+            host_id: user.id,
+            name: newAccommodation.name,
+            description: newAccommodation.description,
+            location: newAccommodation.location,
+            address: newAccommodation.address,
+            price_per_night: Number(newAccommodation.price_per_night) || 0,
+            capacity: Number(newAccommodation.capacity) || 1,
+            bedrooms: Number(newAccommodation.bedrooms) || 1,
+            bathrooms: Number(newAccommodation.bathrooms) || 1,
+            has_wifi: newAccommodation.has_wifi,
+            has_kitchen: newAccommodation.has_kitchen,
+            has_parking: newAccommodation.has_parking,
+            has_bike_storage: newAccommodation.has_bike_storage,
+            has_bike_rental: newAccommodation.has_bike_rental,
+            has_bike_tools: newAccommodation.has_bike_tools,
+            has_laundry: newAccommodation.has_laundry,
+            is_active: true,
+          })
+          .select()
+          .single();
+
+      if (accommodationError) throw accommodationError;
+
+      if (customAmenities.length > 0) {
+        const { error: amenitiesError } = await supabase
+          .from('accommodation_amenities')
+          .insert(
+            customAmenities.map((amenity) => ({
+              accommodation_id: accommodationData.id,
+              amenity_name: amenity.name,
+              amenity_type: amenity.type || 'other',
+            }))
+          );
+
+        if (amenitiesError) throw amenitiesError;
+      }
+
+      Alert.alert('Éxito', 'Alojamiento creado correctamente');
+      setIsCreateModalVisible(false);
+      setNewAccommodation({
+        name: '',
+        description: '',
+        location: '',
+        address: '',
+        price_per_night: '',
+        capacity: '',
+        bedrooms: '',
+        bathrooms: '',
+        has_wifi: false,
+        has_kitchen: false,
+        has_parking: false,
+        has_bike_storage: false,
+        has_bike_rental: false,
+        has_bike_tools: false,
+        has_laundry: false,
+      });
+      setCustomAmenities([]);
+    } catch (error) {
+      console.error('Error creating accommodation:', error);
+      Alert.alert('Error', 'No se pudo crear el alojamiento');
+    } finally {
+      setLoadingCreate(false);
+    }
+  };
+
+  const addCustomAmenity = () => {
+    if (!newAmenityName.trim()) {
+      Alert.alert('Error', 'Por favor ingresa un nombre para la amenidad');
+      return;
+    }
+
+    setCustomAmenities((prev) => [
+      ...prev,
+      { name: newAmenityName.trim(), type: newAmenityType.trim() || 'other' },
+    ]);
+    setNewAmenityName('');
+    setNewAmenityType('');
+    setIsAmenityModalVisible(false);
+  };
+
+  const removeCustomAmenity = (index: number) => {
+    setCustomAmenities((prev) => prev.filter((_, i) => i !== index));
   };
 
   const calculateAverageRating = () => {
@@ -497,41 +647,56 @@ export default function AccommodationDetailScreen() {
 
   const averageRating = calculateAverageRating();
   const availableAmenities = [
+    // Amenidades booleanas (servicios básicos)
     {
       condition: accommodation.has_wifi,
       icon: <Wifi size={20} color="#4ADE80" />,
       name: 'WiFi',
+      type: 'basic',
     },
     {
       condition: accommodation.has_kitchen,
       icon: <Utensils size={20} color="#4ADE80" />,
       name: 'Cocina',
+      type: 'basic',
     },
     {
       condition: accommodation.has_parking,
       icon: <Car size={20} color="#4ADE80" />,
       name: 'Estacionamiento',
+      type: 'basic',
     },
     {
       condition: accommodation.has_bike_storage,
-      icon: <Text style={{ fontSize: 20 }}>🚴</Text>, // Usar Text y estilo para emojis
+      icon: <Text style={{ fontSize: 20 }}>🚴</Text>,
       name: 'Guardado de bicis',
+      type: 'basic',
     },
     {
       condition: accommodation.has_bike_rental,
-      icon: <Text style={{ fontSize: 20 }}>🚲</Text>, // Usar Text y estilo para emojis
+      icon: <Text style={{ fontSize: 20 }}>🚲</Text>,
       name: 'Alquiler de bicis',
+      type: 'basic',
     },
     {
       condition: accommodation.has_bike_tools,
-      icon: <Text style={{ fontSize: 20 }}>🛠️</Text>, // Usar Text y estilo para emojis
+      icon: <Text style={{ fontSize: 20 }}>🛠️</Text>,
       name: 'Herramientas',
+      type: 'basic',
     },
     {
       condition: accommodation.has_laundry,
-      icon: <Text style={{ fontSize: 20 }}>🧺</Text>, // Usar Text y estilo para emojis
+      icon: <Text style={{ fontSize: 20 }}>🧺</Text>,
       name: 'Lavandería',
+      type: 'basic',
     },
+    // Amenidades opcionales (personalizadas)
+    ...(accommodation.accommodation_amenities?.map((amenity) => ({
+      condition: true,
+      icon: <Star size={20} color="#4ADE80" />,
+      name: amenity.amenity_name,
+      type: amenity.amenity_type || 'optional',
+    })) || []),
   ].filter((amenity) => amenity.condition);
 
   return (
@@ -540,7 +705,6 @@ export default function AccommodationDetailScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
-        {/* Carrusel de imágenes */}
         <View style={styles.imageContainer}>
           <ScrollView
             horizontal
@@ -595,9 +759,7 @@ export default function AccommodationDetailScreen() {
           )}
         </View>
 
-        {/* Contenido principal */}
         <View style={styles.content}>
-          {/* Sección de título y rating */}
           <View style={styles.titleSection}>
             <Text style={styles.title}>{accommodation.name}</Text>
             {averageRating > 0 && (
@@ -615,7 +777,6 @@ export default function AccommodationDetailScreen() {
             <MapPin size={16} color="#9CA3AF" /> {accommodation.location}
           </Text>
 
-          {/* Información básica */}
           <View style={styles.propertyInfo}>
             <View style={styles.infoItem}>
               <Users size={16} color="#9CA3AF" />
@@ -635,7 +796,6 @@ export default function AccommodationDetailScreen() {
             </View>
           </View>
 
-          {/* Sección del anfitrión */}
           <TouchableOpacity
             style={styles.hostSection}
             onPress={handleContactHost}
@@ -662,12 +822,10 @@ export default function AccommodationDetailScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Descripción */}
           <View style={styles.descriptionSection}>
             <Text style={styles.description}>{accommodation.description}</Text>
           </View>
 
-          {/* Servicios */}
           <View style={styles.amenitiesSection}>
             <Text style={styles.sectionTitle}>Servicios</Text>
             {availableAmenities.length > 0 ? (
@@ -675,7 +833,18 @@ export default function AccommodationDetailScreen() {
                 {availableAmenities.map((amenity, index) => (
                   <View key={index} style={styles.amenityItem}>
                     {amenity.icon}
-                    <Text style={styles.amenityText}>{amenity.name}</Text>
+                    <View style={styles.amenityTextContainer}>
+                      <Text style={styles.amenityText}>{amenity.name}</Text>
+                      {amenity.type !== 'basic' && (
+                        <Text style={styles.amenityTypeText}>
+                          (
+                          {amenity.type === 'optional'
+                            ? 'adicional'
+                            : amenity.type}
+                          )
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 ))}
               </View>
@@ -686,18 +855,16 @@ export default function AccommodationDetailScreen() {
             )}
           </View>
 
-          {/* Reseñas */}
           <View style={styles.reviewsSection}>
-            {/* Contenedor del título de reseñas y el botón */}
             <View style={styles.reviewsHeader}>
               <Text style={styles.sectionTitle}>Reseñas</Text>
-                <TouchableOpacity
-                  style={styles.addReviewButton}
-                  onPress={() => setReviewModalVisible(true)}
-                >
-                  <Plus size={20} color="#4ADE80" />
-                  <Text style={styles.addReviewButtonText}>Añadir reseña</Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addReviewButton}
+                onPress={() => setReviewModalVisible(true)}
+              >
+                <Plus size={20} color="#4ADE80" />
+                <Text style={styles.addReviewButtonText}>Añadir reseña</Text>
+              </TouchableOpacity>
             </View>
 
             {accommodation.accommodation_reviews.length > 0 ? (
@@ -786,7 +953,6 @@ export default function AccommodationDetailScreen() {
                         </View>
                       )}
 
-                    {/* Muestra el formulario de respuesta solo si el usuario es el anfitrión o el revisor original */}
                     {(user?.id === accommodation.host_id ||
                       user?.id === review.user_id) && (
                       <View style={styles.responseForm}>
@@ -824,12 +990,12 @@ export default function AccommodationDetailScreen() {
               </>
             ) : (
               <Text style={styles.noReviewsText}>
-                Este alojamiento aún no tiene reseñas. ¡Sé el primero en dejar una!
+                Este alojamiento aún no tiene reseñas. ¡Sé el primero en dejar
+                una!
               </Text>
             )}
           </View>
 
-          {/* Ubicación */}
           <View style={styles.locationSection}>
             <Text style={styles.sectionTitle}>Ubicación</Text>
             <Text style={styles.locationText}>{accommodation.address}</Text>
@@ -841,7 +1007,6 @@ export default function AccommodationDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Modal para reseñas */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -898,7 +1063,344 @@ export default function AccommodationDetailScreen() {
         </View>
       </Modal>
 
-      {/* Barra inferior de reserva */}
+      {/* Modal para crear alojamiento */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isCreateModalVisible}
+        onRequestClose={() => setIsCreateModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Crear Alojamiento</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setIsCreateModalVisible(false)}
+              >
+                <X size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.createForm}>
+              <Text style={styles.inputLabel}>Nombre*</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Nombre del alojamiento"
+                value={newAccommodation.name}
+                onChangeText={(text) =>
+                  setNewAccommodation({ ...newAccommodation, name: text })
+                }
+              />
+
+              <Text style={styles.inputLabel}>Descripción*</Text>
+              <TextInput
+                style={[styles.input, { height: 100 }]}
+                placeholder="Describe tu alojamiento"
+                multiline
+                value={newAccommodation.description}
+                onChangeText={(text) =>
+                  setNewAccommodation({
+                    ...newAccommodation,
+                    description: text,
+                  })
+                }
+              />
+
+              <Text style={styles.inputLabel}>Ubicación*</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ciudad, región"
+                value={newAccommodation.location}
+                onChangeText={(text) =>
+                  setNewAccommodation({ ...newAccommodation, location: text })
+                }
+              />
+
+              <Text style={styles.inputLabel}>Dirección completa</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Calle, número, etc."
+                value={newAccommodation.address}
+                onChangeText={(text) =>
+                  setNewAccommodation({ ...newAccommodation, address: text })
+                }
+              />
+
+              <Text style={styles.inputLabel}>Precio por noche</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 50"
+                keyboardType="numeric"
+                value={newAccommodation.price_per_night}
+                onChangeText={(text) =>
+                  setNewAccommodation({
+                    ...newAccommodation,
+                    price_per_night: text,
+                  })
+                }
+              />
+
+              <Text style={styles.inputLabel}>Capacidad</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Número de huéspedes"
+                keyboardType="numeric"
+                value={newAccommodation.capacity}
+                onChangeText={(text) =>
+                  setNewAccommodation({ ...newAccommodation, capacity: text })
+                }
+              />
+
+              <Text style={styles.inputLabel}>Habitaciones</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Número de habitaciones"
+                keyboardType="numeric"
+                value={newAccommodation.bedrooms}
+                onChangeText={(text) =>
+                  setNewAccommodation({ ...newAccommodation, bedrooms: text })
+                }
+              />
+
+              <Text style={styles.inputLabel}>Baños</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Número de baños"
+                keyboardType="numeric"
+                value={newAccommodation.bathrooms}
+                onChangeText={(text) =>
+                  setNewAccommodation({ ...newAccommodation, bathrooms: text })
+                }
+              />
+
+              <Text style={styles.sectionTitle}>Amenidades Principales</Text>
+
+              <View style={styles.amenitySwitch}>
+                <View style={styles.amenitySwitchText}>
+                  <Wifi size={20} color="#4ADE80" />
+                  <Text style={styles.amenitySwitchLabel}>Wi-Fi</Text>
+                </View>
+                <Switch
+                  value={newAccommodation.has_wifi}
+                  onValueChange={(value) =>
+                    setNewAccommodation({
+                      ...newAccommodation,
+                      has_wifi: value,
+                    })
+                  }
+                  trackColor={{ false: '#767577', true: '#4ADE80' }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+
+              <View style={styles.amenitySwitch}>
+                <View style={styles.amenitySwitchText}>
+                  <Utensils size={20} color="#4ADE80" />
+                  <Text style={styles.amenitySwitchLabel}>Cocina</Text>
+                </View>
+                <Switch
+                  value={newAccommodation.has_kitchen}
+                  onValueChange={(value) =>
+                    setNewAccommodation({
+                      ...newAccommodation,
+                      has_kitchen: value,
+                    })
+                  }
+                  trackColor={{ false: '#767577', true: '#4ADE80' }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+
+              <View style={styles.amenitySwitch}>
+                <View style={styles.amenitySwitchText}>
+                  <Car size={20} color="#4ADE80" />
+                  <Text style={styles.amenitySwitchLabel}>Estacionamiento</Text>
+                </View>
+                <Switch
+                  value={newAccommodation.has_parking}
+                  onValueChange={(value) =>
+                    setNewAccommodation({
+                      ...newAccommodation,
+                      has_parking: value,
+                    })
+                  }
+                  trackColor={{ false: '#767577', true: '#4ADE80' }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+
+              <View style={styles.amenitySwitch}>
+                <View style={styles.amenitySwitchText}>
+                  <Text style={{ fontSize: 20 }}>🚴</Text>
+                  <Text style={styles.amenitySwitchLabel}>
+                    Guardado de bicis
+                  </Text>
+                </View>
+                <Switch
+                  value={newAccommodation.has_bike_storage}
+                  onValueChange={(value) =>
+                    setNewAccommodation({
+                      ...newAccommodation,
+                      has_bike_storage: value,
+                    })
+                  }
+                  trackColor={{ false: '#767577', true: '#4ADE80' }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+
+              <View style={styles.amenitySwitch}>
+                <View style={styles.amenitySwitchText}>
+                  <Text style={{ fontSize: 20 }}>🚲</Text>
+                  <Text style={styles.amenitySwitchLabel}>
+                    Alquiler de bicis
+                  </Text>
+                </View>
+                <Switch
+                  value={newAccommodation.has_bike_rental}
+                  onValueChange={(value) =>
+                    setNewAccommodation({
+                      ...newAccommodation,
+                      has_bike_rental: value,
+                    })
+                  }
+                  trackColor={{ false: '#767577', true: '#4ADE80' }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+
+              <View style={styles.amenitySwitch}>
+                <View style={styles.amenitySwitchText}>
+                  <Text style={{ fontSize: 20 }}>🛠️</Text>
+                  <Text style={styles.amenitySwitchLabel}>
+                    Herramientas para bicis
+                  </Text>
+                </View>
+                <Switch
+                  value={newAccommodation.has_bike_tools}
+                  onValueChange={(value) =>
+                    setNewAccommodation({
+                      ...newAccommodation,
+                      has_bike_tools: value,
+                    })
+                  }
+                  trackColor={{ false: '#767577', true: '#4ADE80' }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+
+              <View style={styles.amenitySwitch}>
+                <View style={styles.amenitySwitchText}>
+                  <Text style={{ fontSize: 20 }}>🧺</Text>
+                  <Text style={styles.amenitySwitchLabel}>Lavandería</Text>
+                </View>
+                <Switch
+                  value={newAccommodation.has_laundry}
+                  onValueChange={(value) =>
+                    setNewAccommodation({
+                      ...newAccommodation,
+                      has_laundry: value,
+                    })
+                  }
+                  trackColor={{ false: '#767577', true: '#4ADE80' }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+
+              <View style={styles.customAmenitiesSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>
+                    Amenidades Personalizadas
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => setIsAmenityModalVisible(true)}
+                  >
+                    <Plus size={20} color="#4ADE80" />
+                  </TouchableOpacity>
+                </View>
+
+                {customAmenities.length > 0 ? (
+                  <FlatList
+                    data={customAmenities}
+                    renderItem={({ item, index }) => (
+                      <View style={styles.customAmenityItem}>
+                        <Text style={styles.customAmenityText}>
+                          {item.name} {item.type && `(${item.type})`}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => removeCustomAmenity(index)}
+                        >
+                          <X size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    keyExtractor={(item, index) => index.toString()}
+                    scrollEnabled={false}
+                  />
+                ) : (
+                  <Text style={styles.noAmenitiesText}>
+                    No hay amenidades personalizadas
+                  </Text>
+                )}
+              </View>
+
+              <Button
+                title={loadingCreate ? 'Creando...' : 'Crear Alojamiento'}
+                onPress={handleCreateAccommodation}
+                disabled={loadingCreate}
+                style={styles.submitButton}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para agregar amenidad personalizada */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isAmenityModalVisible}
+        onRequestClose={() => setIsAmenityModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Agregar Amenidad</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setIsAmenityModalVisible(false)}
+              >
+                <X size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Nombre de la amenidad*</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ej: Sauna, Jacuzzi, etc."
+              value={newAmenityName}
+              onChangeText={setNewAmenityName}
+            />
+
+            <Text style={styles.inputLabel}>Tipo (opcional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ej: relax, deporte, etc."
+              value={newAmenityType}
+              onChangeText={setNewAmenityType}
+            />
+
+            <Button
+              title="Agregar Amenidad"
+              onPress={addCustomAmenity}
+              disabled={!newAmenityName.trim()}
+            />
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.bottomBar}>
         <View style={styles.priceInfo}>
           <Text style={styles.price}>${accommodation.price_per_night}</Text>
@@ -926,7 +1428,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingBottom: 100, // Make sure content isn't hidden by bottom bar
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
@@ -1200,7 +1702,7 @@ const styles = StyleSheet.create({
   },
   responsesContainer: {
     marginTop: 12,
-    marginLeft: 52, // Indent responses
+    marginLeft: 52,
     borderLeftWidth: 1,
     borderLeftColor: '#374151',
     paddingLeft: 12,
@@ -1369,4 +1871,79 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     flex: 0,
   },
+  createForm: {
+    maxHeight: '80%',
+  },
+  amenitySwitch: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#374151',
+  },
+  amenitySwitchText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  amenitySwitchLabel: {
+    color: '#FFFFFF',
+    marginLeft: 12,
+  },
+  customAmenitiesSection: {
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  addButton: {
+    padding: 4,
+  },
+  customAmenityItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  customAmenityText: {
+    color: '#FFFFFF',
+  },
+  inputLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  input: {
+    backgroundColor: '#374151',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  amenityIte: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  width: '50%',
+  marginBottom: 16,
+},
+amenityTextContainer: {
+  marginLeft: 12,
+},
+amenityTet: {
+  color: '#FFFFFF',
+  fontSize: 16,
+},
+amenityTypeText: {
+  color: '#9CA3AF',
+  fontSize: 12,
+  fontStyle: 'italic',
+},
 });
