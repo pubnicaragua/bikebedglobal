@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, 
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, FlatList, TextInput, Modal, Alert,
   KeyboardAvoidingView, Platform, Switch, Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { 
-  Map, Plus, Search, Filter, ChevronRight, MapPin, Clock, 
-  X, Save, Camera, Image as ImageIcon, Trash2, Download 
+import {
+  Map, Plus, Search, Filter, ChevronRight, MapPin, Clock,
+  X, Save, Camera, Image as ImageIcon, Trash2, Download,
+  MapPinned, Tag, LocateFixed
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -39,6 +40,15 @@ interface Route {
   updated_at: string;
 }
 
+// Nueva interfaz para los Puntos de Interés
+interface PointOfInterest {
+  id: string; // Para manejar en el UI antes de guardar
+  name: string;
+  description: string;
+  poi_type: 'viewpoint' | 'rest_area' | 'water_source' | 'bike_shop' | 'restaurant' | 'other' | '';
+  coordinates: string; // Se guardará como 'lat,lon'
+}
+
 interface NewRouteForm {
   name: string;
   description: string;
@@ -51,6 +61,7 @@ interface NewRouteForm {
   is_loop: boolean;
   is_verified: boolean;
   is_active: boolean;
+  points_of_interest: PointOfInterest[]; // Nuevo campo para POI
 }
 
 interface SelectedImage {
@@ -105,6 +116,7 @@ export default function RoutesManagementScreen() {
     is_loop: false,
     is_verified: false,
     is_active: true,
+    points_of_interest: [], // Inicializar POI vacío
   });
 
   useEffect(() => {
@@ -134,7 +146,7 @@ export default function RoutesManagementScreen() {
   const generatePDF = async () => {
     try {
       setLoading(true);
-      
+
       if (routes.length === 0) {
         Alert.alert('No hay rutas', 'No hay rutas disponibles para generar el reporte');
         return;
@@ -180,7 +192,7 @@ export default function RoutesManagementScreen() {
     } catch (error) {
       console.error('Error al generar PDF:', error);
       Alert.alert(
-        'Error', 
+        'Error',
         error instanceof Error ? error.message : 'No se pudo generar el PDF'
       );
     } finally {
@@ -208,6 +220,7 @@ export default function RoutesManagementScreen() {
       is_loop: false,
       is_verified: false,
       is_active: true,
+      points_of_interest: [],
     });
     setSelectedImages([]);
   };
@@ -302,7 +315,7 @@ export default function RoutesManagementScreen() {
   };
 
   const setPrimaryImage = (imageId: string) => {
-    setSelectedImages(prev => 
+    setSelectedImages(prev =>
       prev.map(img => ({
         ...img,
         is_primary: img.id === imageId
@@ -314,17 +327,17 @@ export default function RoutesManagementScreen() {
     if (selectedImages.length === 0) return [];
 
     const uploadedUrls: string[] = [];
-    
+
     for (const image of selectedImages) {
       try {
         const base64 = await FileSystem.readAsStringAsync(image.uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        
+
         const arrayBuffer = decode(base64);
         const fileExt = image.name.split('.').pop()?.toLowerCase() || 'jpg';
         const fileName = `${routeId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        
+
         const { data, error } = await supabase.storage
           .from('route-images')
           .upload(fileName, arrayBuffer, {
@@ -339,7 +352,7 @@ export default function RoutesManagementScreen() {
           .getPublicUrl(fileName);
 
         uploadedUrls.push(urlData.publicUrl);
-        
+
       } catch (error) {
         console.error('Error procesando imagen:', error);
         throw error;
@@ -361,6 +374,33 @@ export default function RoutesManagementScreen() {
       .insert(imageRecords);
 
     if (error) throw error;
+  };
+
+  // Funciones para manejar los Puntos de Interés
+  const addPointOfInterest = () => {
+    setNewRoute(prev => ({
+      ...prev,
+      points_of_interest: [
+        ...prev.points_of_interest,
+        { id: Date.now().toString(), name: '', description: '', poi_type: '', coordinates: '' } // Generar un ID temporal
+      ]
+    }));
+  };
+
+  const updatePointOfInterest = (id: string, field: keyof PointOfInterest, value: string) => {
+    setNewRoute(prev => ({
+      ...prev,
+      points_of_interest: prev.points_of_interest.map(poi =>
+        poi.id === id ? { ...poi, [field]: value } : poi
+      )
+    }));
+  };
+
+  const removePointOfInterest = (id: string) => {
+    setNewRoute(prev => ({
+      ...prev,
+      points_of_interest: prev.points_of_interest.filter(poi => poi.id !== id)
+    }));
   };
 
   const validateForm = (): boolean => {
@@ -392,6 +432,23 @@ export default function RoutesManagementScreen() {
       Alert.alert('Error', 'El tiempo estimado debe ser un número válido (en minutos)');
       return false;
     }
+
+    // Validar Puntos de Interés
+    for (const poi of newRoute.points_of_interest) {
+      if (!poi.name.trim()) {
+        Alert.alert('Error', 'El nombre del punto de interés es obligatorio.');
+        return false;
+      }
+      if (!poi.coordinates.trim()) {
+        Alert.alert('Error', 'Las coordenadas del punto de interés son obligatorias.');
+        return false;
+      }
+      const coords = poi.coordinates.split(',').map(c => parseFloat(c.trim()));
+      if (coords.length !== 2 || isNaN(coords[0]) || isNaN(coords[1])) {
+        Alert.alert('Error', `Formato de coordenadas inválido para ${poi.name}. Usa "latitud,longitud".`);
+        return false;
+      }
+    }
     return true;
   };
 
@@ -400,7 +457,7 @@ export default function RoutesManagementScreen() {
 
     try {
       setCreatingRoute(true);
-      
+
       const routeData = {
         creator_id: user.id,
         name: newRoute.name.trim(),
@@ -428,16 +485,17 @@ export default function RoutesManagementScreen() {
         return;
       }
 
+      // Subir imágenes
       if (selectedImages.length > 0) {
         try {
           setUploadingImages(true);
           const imageUrls = await uploadImages(routeData_result.id);
           await createImageRecords(routeData_result.id, imageUrls);
-          
+
         } catch (imageUploadError) {
           console.error('Error subiendo imágenes:', imageUploadError);
           Alert.alert(
-            'Advertencia', 
+            'Advertencia',
             'La ruta se creó pero no se pudieron subir las imágenes.'
           );
         } finally {
@@ -445,11 +503,37 @@ export default function RoutesManagementScreen() {
         }
       }
 
+      // Insertar Puntos de Interés
+      if (newRoute.points_of_interest.length > 0) {
+        const poiRecords = newRoute.points_of_interest.map(poi => {
+          const [lat, lon] = poi.coordinates.split(',').map(c => parseFloat(c.trim()));
+          return {
+            route_id: routeData_result.id,
+            name: poi.name.trim(),
+            description: poi.description.trim() || null,
+            poi_type: poi.poi_type || null,
+            coordinates: `(${lat},${lon})`, // Formato 'point' para PostgreSQL
+          };
+        });
+
+        const { error: poiError } = await supabase
+          .from('route_points_of_interest')
+          .insert(poiRecords);
+
+        if (poiError) {
+          console.error('Error al insertar puntos de interés:', poiError);
+          Alert.alert(
+            'Advertencia',
+            'La ruta se creó, pero hubo un error al guardar los puntos de interés.'
+          );
+        }
+      }
+
       Alert.alert('Éxito', `La ruta "${routeData_result.name}" ha sido creada exitosamente`);
       await fetchRoutes();
       setShowCreateModal(false);
       resetForm();
-      
+
     } catch (error) {
       console.error('Error creating route:', error);
       Alert.alert('Error', 'Ocurrió un error inesperado');
@@ -477,7 +561,7 @@ export default function RoutesManagementScreen() {
   };
 
   const renderRouteItem = ({ item }: { item: Route }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.routeCard}
       onPress={() => navigateToRouteDetail(item.id)}
     >
@@ -493,29 +577,29 @@ export default function RoutesManagementScreen() {
             </View>
           )}
         </View>
-        
+
         <Text style={styles.routeDescription} numberOfLines={1}>
           {item.description}
         </Text>
-        
+
         <View style={styles.routeLocation}>
           <MapPin size={12} color="#9CA3AF" />
           <Text style={styles.locationText} numberOfLines={1}>
             {item.start_location} → {item.end_location}
           </Text>
         </View>
-        
+
         <View style={styles.routeMeta}>
           <Text style={styles.routeMetaText}>{item.distance} km</Text>
-          
+
           <Text style={[
-            styles.routeMetaText, 
+            styles.routeMetaText,
             styles.routeDifficulty,
             { color: getDifficultyColor(item.difficulty) }
           ]}>
             {getDifficultyText(item.difficulty)}
           </Text>
-          
+
           {item.estimated_time && (
             <View style={styles.timeContainer}>
               <Clock size={12} color="#9CA3AF" />
@@ -524,19 +608,19 @@ export default function RoutesManagementScreen() {
               </Text>
             </View>
           )}
-          
+
           {item.elevation_gain && (
             <Text style={styles.routeMetaText}>
               ↗ {item.elevation_gain}m
             </Text>
           )}
-          
+
           {item.is_loop && (
             <Text style={styles.loopBadge}>Circular</Text>
           )}
-          
+
           <Text style={[
-            styles.routeMetaText, 
+            styles.routeMetaText,
             styles.routeStatus,
             { color: item.is_active ? '#10B981' : '#EF4444' }
           ]}>
@@ -565,7 +649,7 @@ export default function RoutesManagementScreen() {
         <View style={styles.headerContent}>
           <Text style={styles.title}>Gestión de Rutas</Text>
           <View style={styles.headerButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.headerButton, styles.downloadButton]}
               onPress={generatePDF}
               disabled={loading || routes.length === 0}
@@ -576,7 +660,7 @@ export default function RoutesManagementScreen() {
                 <Download size={20} color="#FFFFFF" />
               )}
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.headerButton, styles.addButton]}
               onPress={() => setShowCreateModal(true)}
             >
@@ -597,7 +681,7 @@ export default function RoutesManagementScreen() {
             onChangeText={setSearchQuery}
           />
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.filterButton}
           onPress={() => console.log('Filtro presionado')}
         >
@@ -634,7 +718,7 @@ export default function RoutesManagementScreen() {
         <Text style={styles.sectionTitle}>
           Todas las rutas ({filteredRoutes.length})
         </Text>
-        
+
         {filteredRoutes.length > 0 ? (
           <FlatList
             data={filteredRoutes}
@@ -651,13 +735,13 @@ export default function RoutesManagementScreen() {
               {searchQuery ? 'No se encontraron rutas' : 'No hay rutas disponibles'}
             </Text>
             <Text style={styles.emptySubtext}>
-              {searchQuery 
-                ? 'Prueba con otro término de búsqueda' 
+              {searchQuery
+                ? 'Prueba con otro término de búsqueda'
                 : 'Crea tu primera ruta para comenzar'
               }
             </Text>
             {!searchQuery && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.createButton}
                 onPress={() => setShowCreateModal(true)}
               >
@@ -681,12 +765,12 @@ export default function RoutesManagementScreen() {
         }}
       >
         <SafeAreaView style={styles.modalContainer}>
-          <KeyboardAvoidingView 
+          <KeyboardAvoidingView
             style={styles.modalContent}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <View style={styles.modalHeader}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.closeButton}
                 onPress={() => {
                   if (!creatingRoute && !uploadingImages) {
@@ -699,7 +783,7 @@ export default function RoutesManagementScreen() {
                 <X size={24} color="#FFFFFF" />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>Nueva Ruta</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.saveButton, (creatingRoute || uploadingImages) && styles.saveButtonDisabled]}
                 onPress={createRoute}
                 disabled={creatingRoute || uploadingImages}
@@ -753,7 +837,7 @@ export default function RoutesManagementScreen() {
                     onChangeText={(text) => setNewRoute({...newRoute, distance: text})}
                   />
                 </View>
-                
+
                 <View style={styles.formGroupHalf}>
                   <Text style={styles.formLabel}>Elevación (m)</Text>
                   <TextInput
@@ -779,7 +863,7 @@ export default function RoutesManagementScreen() {
                     onChangeText={(text) => setNewRoute({...newRoute, estimated_time: text})}
                   />
                 </View>
-                
+
                 <View style={styles.formGroupHalf}>
                   <Text style={styles.formLabel}>Dificultad *</Text>
                   <View style={styles.difficultyContainer}>
@@ -826,16 +910,91 @@ export default function RoutesManagementScreen() {
                 />
               </View>
 
+              {/* Sección de Puntos de Interés */}
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Puntos de Interés</Text>
+                <TouchableOpacity style={styles.addPoiButton} onPress={addPointOfInterest}>
+                  <Plus size={16} color="#FFFFFF" />
+                  <Text style={styles.addPoiButtonText}>Añadir POI</Text>
+                </TouchableOpacity>
+              </View>
+
+              {newRoute.points_of_interest.map((poi, index) => (
+                <View key={poi.id} style={styles.poiCard}>
+                  <View style={styles.poiHeader}>
+                    <Text style={styles.poiCardTitle}>Punto de Interés #{index + 1}</Text>
+                    <TouchableOpacity onPress={() => removePointOfInterest(poi.id)}>
+                      <Trash2 size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Nombre del POI *</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="Ej: Mirador de la cascada"
+                      placeholderTextColor="#6B7280"
+                      value={poi.name}
+                      onChangeText={(text) => updatePointOfInterest(poi.id, 'name', text)}
+                    />
+                  </View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Descripción del POI</Text>
+                    <TextInput
+                      style={[styles.formInput, styles.textArea]}
+                      placeholder="Detalles sobre este punto de interés"
+                      placeholderTextColor="#6B7280"
+                      multiline
+                      numberOfLines={3}
+                      value={poi.description}
+                      onChangeText={(text) => updatePointOfInterest(poi.id, 'description', text)}
+                    />
+                  </View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Tipo de POI</Text>
+                    <View style={styles.difficultyContainer}>
+                      {(['viewpoint', 'rest_area', 'water_source', 'bike_shop', 'restaurant', 'other'] as const).map((type) => (
+                        <TouchableOpacity
+                          key={type}
+                          style={[
+                            styles.difficultyOption,
+                            poi.poi_type === type && styles.difficultyOptionSelected
+                          ]}
+                          onPress={() => updatePointOfInterest(poi.id, 'poi_type', type)}
+                        >
+                          <Text style={[
+                            styles.difficultyText,
+                            poi.poi_type === type && styles.difficultyTextSelected
+                          ]}>
+                            {type.replace('_', ' ')}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Coordenadas (latitud,longitud) *</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="Ej: 40.7128, -74.0060"
+                      placeholderTextColor="#6B7280"
+                      value={poi.coordinates}
+                      onChangeText={(text) => updatePointOfInterest(poi.id, 'coordinates', text)}
+                    />
+                  </View>
+                </View>
+              ))}
+
+
               <View style={styles.imageButtonsContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.imageButton}
                   onPress={pickImages}
                 >
                   <ImageIcon size={18} color="#8B5CF6" />
                   <Text style={styles.imageButtonText}>Galería</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={styles.imageButton}
                   onPress={takePhoto}
                 >
@@ -849,15 +1008,15 @@ export default function RoutesManagementScreen() {
                   <Text style={styles.selectedImagesTitle}>
                     Imágenes seleccionadas ({selectedImages.length})
                   </Text>
-                  <ScrollView 
-                    horizontal 
+                  <ScrollView
+                    horizontal
                     style={styles.imagesScrollView}
                     showsHorizontalScrollIndicator={false}
                   >
                     {selectedImages.map((image) => (
                       <View key={image.id} style={styles.imagePreviewContainer}>
-                        <Image 
-                          source={{ uri: image.uri }} 
+                        <Image
+                          source={{ uri: image.uri }}
                           style={styles.imagePreview}
                         />
                         {image.is_primary && (
@@ -902,7 +1061,7 @@ export default function RoutesManagementScreen() {
                     trackColor={{ false: '#374151', true: '#8B5CF650' }}
                   />
                 </View>
-                
+
                 <View style={styles.switchRow}>
                   <View style={styles.switchInfo}>
                     <Text style={styles.switchLabel}>Verificada</Text>
@@ -917,7 +1076,7 @@ export default function RoutesManagementScreen() {
                     trackColor={{ false: '#374151', true: '#8B5CF650' }}
                   />
                 </View>
-                
+
                 <View style={[styles.switchRow, styles.switchRowLast]}>
                   <View style={styles.switchInfo}>
                     <Text style={styles.switchLabel}>Activa</Text>
@@ -1417,5 +1576,46 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 12,
     textAlign: 'center',
+  },
+  // Estilos para Puntos de Interés
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 24,
+  },
+  addPoiButton: {
+    backgroundColor: '#8B5CF6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  addPoiButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  poiCard: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  poiHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  poiCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

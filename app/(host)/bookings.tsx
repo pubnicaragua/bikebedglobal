@@ -43,7 +43,7 @@ export default function HostBookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const { t } = useI18n();
+  useI18n();
 
   useEffect(() => {
     if (user) {

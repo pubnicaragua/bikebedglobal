@@ -143,7 +143,7 @@ const handlePayBooking = (bookingId: string) => {
     
     return (
       <View style={styles.bookingItem}>
-        <TouchableOpacity onPress={() => router.push(`/booking/${item.id}`)}>
+        <TouchableOpacity onPress={() => router.push(`/`)}>
           <Image 
             source={{ uri: item.accommodation.image_url }} 
             style={styles.bookingImage} 

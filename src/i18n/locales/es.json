@@ -337,6 +337,8 @@
     "viewBookingsSubtitle": "Revisar y gestionar reservas pendientes",
     "viewRentalHistory": "Ver Historial de Alquileres",
     "rentalHistorySubtitle": "Revisa todas tus transacciones pasadas",
+    "bankAccountsTitle": "Configurar Cuenta Bancaria",
+    "bankAccountsSubtitle": "Gestiona tus métodos de pago para ingresos",
     "messagesTitle": "Mensajes",
     "unreadMessages": "mensajes sin leer",
     "recentActivityTitle": "Actividad Reciente",
@@ -347,6 +349,32 @@
     "paymentProcessed": "Pago procesado",
     "threeDaysAgo": "Hace 3 días"
   },
+  "bankAccounts": {
+    "title": "Configurar Cuenta Bancaria",
+    "description": "Aquí puedes gestionar tus métodos de pago para recibir ingresos de tus alojamientos y alquileres de bicicletas.",
+    "noCardsYet": "Aún no tienes tarjetas configuradas.",
+    "addCard": "Añadir Nueva Tarjeta",
+    "form": {
+      "addCardTitle": "Añadir Nueva Tarjeta",
+      "cardTypePlaceholder": "Tipo de Tarjeta (Visa, Mastercard, etc.)",
+      "lastFourDigitsPlaceholder": "Últimos 4 dígitos",
+      "expMonthPlaceholder": "Mes (MM)",
+      "expYearPlaceholder": "Año (AAAA)",
+      "cardHolderNamePlaceholder": "Nombre del Titular (Opcional)",
+      "saveCard": "Guardar Tarjeta"
+    },
+    "success": {
+      "cardAdded": "Tarjeta añadida con éxito!"
+    },
+    "error": {
+      "notLoggedIn": "Usuario no autenticado.",
+      "allFieldsRequired": "Por favor, rellena todos los campos obligatorios.",
+      "invalidLastFourDigits": "Los últimos 4 dígitos deben ser exactamente 4 números.",
+      "invalidMonth": "Mes de caducidad inválido.",
+      "invalidYear": "Año de caducidad inválido.",
+      "addCardFailed": "Error al añadir tarjeta:"
+    }
+  },
   "amenities": {
     "title": "Gestionar Amenidades",
     "description": "Selecciona las amenidades que ofrece tu alojamiento para que los huéspedes puedan encontrarte más fácilmente.",
@@ -354,3 +382,4 @@
     "saveChanges": "Guardar cambios"
   }
 }
+

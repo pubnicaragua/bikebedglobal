@@ -6,21 +6,23 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator, // Añadido para el estado de carga
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { 
-  Home, 
-  DollarSign, 
-  Star, 
-  MessageCircle, 
-  Calendar, 
-  Bike, 
+import {
+  Home,
+  DollarSign,
+  Star,
+  MessageCircle,
+  Calendar,
+  Bike, // Icono de bicicleta para alquileres
   LogOut,
   Users,
   Map,
   Bell,
-  Settings
+  Settings,
+  List
 } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
@@ -33,6 +35,7 @@ interface AdminStats {
   totalRoutes: number;
   activeRoutes: number;
   totalBookings: number;
+  totalRentals: number; // <--- VARIABLE CAMBIADA: Ahora cuenta todos los alquileres
   pendingNotifications: number;
   unreadMessages: number;
 }
@@ -44,6 +47,7 @@ export default function AdminDashboardScreen() {
     totalRoutes: 0,
     activeRoutes: 0,
     totalBookings: 0,
+    totalRentals: 0, // Inicializar la nueva variable
     pendingNotifications: 0,
     unreadMessages: 0,
   });
@@ -99,10 +103,15 @@ export default function AdminDashboardScreen() {
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
 
-      // Estadísticas de reservas
+      // Estadísticas de reservas (total de bike_bookings)
       const { count: totalBookings } = await supabase
-        .from('bookings')
+        .from('bookings') // Asumiendo que 'bookings' es tu tabla 'bike_bookings'
         .select('*', { count: 'exact', head: true });
+
+      // <--- CAMBIO AQUÍ: Ahora contamos TODOS los alquileres sin filtrar por estado
+      const { count: totalRentals } = await supabase
+        .from('bookings') // Asumiendo que 'bookings' es tu tabla 'bike_bookings'
+        .select('*', { count: 'exact', head: true }); // Contar todos los registros, sin filtro de estado
 
       // Notificaciones pendientes
       const { count: pendingNotifications } = await supabase
@@ -122,6 +131,7 @@ export default function AdminDashboardScreen() {
         totalRoutes: totalRoutes || 0,
         activeRoutes: activeRoutes || 0,
         totalBookings: totalBookings || 0,
+        totalRentals: totalRentals || 0, // Asignar el nuevo conteo
         pendingNotifications: pendingNotifications || 0,
         unreadMessages: unreadMessages || 0,
       });
@@ -155,6 +165,7 @@ export default function AdminDashboardScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3B82F6" /> {/* Indicador de carga */}
           <Text style={styles.loadingText}>Cargando...</Text>
         </View>
       </SafeAreaView>
@@ -169,13 +180,13 @@ export default function AdminDashboardScreen() {
             <Text style={styles.title}>Panel de Administrador</Text>
             <Text style={styles.subtitle}>Gestión completa de la plataforma</Text>
           </View>
-          
+
           <View style={styles.headerActions}>
             <View style={styles.languageToggleContainer}>
               <LanguageToggle />
             </View>
-            <TouchableOpacity 
-              onPress={handleSignOut} 
+            <TouchableOpacity
+              onPress={handleSignOut}
               style={styles.signOutButton}
             >
               <LogOut size={20} color="#EF4444" />
@@ -206,19 +217,20 @@ export default function AdminDashboardScreen() {
             subtitle="totales"
             color="#F59E0B"
           />
+          {/* CAMBIO AQUÍ: Tarjeta de Alquileres (total de todos los estados) */}
           <StatCard
-            icon={Bell}
-            title="Notificaciones"
-            value={stats.pendingNotifications}
-            subtitle="pendientes"
-            color="#EC4899"
+            icon={Bike} // Icono de bicicleta
+            title="Alquileres" // Título
+            value={stats.totalRentals} // Usando la nueva variable para todos los alquileres
+            subtitle="todos los estados" // Subtítulo relevante
+            color="#10B981" // Color
           />
         </View>
 
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Gestión Principal</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(admin)/users')}
           >
@@ -231,7 +243,7 @@ export default function AdminDashboardScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(admin)/routes')}
           >
@@ -244,7 +256,7 @@ export default function AdminDashboardScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/notification')}
           >
@@ -262,9 +274,9 @@ export default function AdminDashboardScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/')}
+            onPress={() => router.push('/(host)/bookings')}
           >
             <View style={styles.actionIcon}>
               <Calendar size={20} color="#F59E0B" />
@@ -275,8 +287,8 @@ export default function AdminDashboardScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Nuevo botón para Reportes Financieros */}
-          <TouchableOpacity 
+          {/* Botón para Reportes Financieros */}
+          <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(admin)/financialReport')}
           >
@@ -288,13 +300,28 @@ export default function AdminDashboardScreen() {
               <Text style={styles.actionSubtitle}>Ver reportes de ingresos y ganancias</Text>
             </View>
           </TouchableOpacity>
+
+          {/* Botón para Historial de Alquileres */}
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push('/(admin)/rentalHistory')}
+          >
+            <View style={styles.actionIcon}>
+              <List size={20} color="#6366F1" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Historial de Alquileres</Text>
+              <Text style={styles.actionSubtitle}>Revisar el historial completo de alquileres</Text>
+            </View>
+          </TouchableOpacity>
+
         </View>
 
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Otras Acciones</Text>
-          
+
           {stats.unreadMessages > 0 && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => router.push('/')}
             >
@@ -313,9 +340,9 @@ export default function AdminDashboardScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/')}
+            onPress={() => router.push('/(admin)/logs')}
           >
             <View style={styles.actionIcon}>
               <Settings size={20} color="#6B7280" />

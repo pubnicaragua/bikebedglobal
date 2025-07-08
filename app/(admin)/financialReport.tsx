@@ -6,13 +6,21 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { DollarSign, ArrowLeft, Calendar, User, Home, CheckCircle, XCircle } from 'lucide-react-native';
+import { DollarSign, ArrowLeft, Calendar, User, Home, FileText } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useI18n } from '../../src/hooks/useI18n';
+
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library';
+
+import { getInvoiceHtml } from '../../components/facturasPdfTemplate';
 
 interface FinancialStats {
   totalRevenue: number;
@@ -36,6 +44,10 @@ interface BookingDetail {
   status: string;
   payment_status: string;
   created_at: string;
+  userAddress?: string;
+  userEmail?: string;
+  userId?: string;
+  isGeneratingInvoice?: boolean; // Añadir propiedad para controlar el estado de carga por tarjeta
 }
 
 export default function FinancialReportsScreen() {
@@ -59,18 +71,19 @@ export default function FinancialReportsScreen() {
       fetchFinancialData();
     } else {
       setLoading(false);
-      // router.replace('/auth');
     }
   }, [user]);
 
   const fetchFinancialData = async () => {
     try {
+      setLoading(true);
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('*, profiles(first_name, last_name), accommodations(name)'); 
+        .select('*, profiles(first_name, last_name, email), accommodations(name)');
 
       if (bookingsError) {
         console.error('Error fetching bookings:', bookingsError);
+        Alert.alert('Error', 'No se pudieron cargar los datos financieros.');
         return;
       }
 
@@ -127,7 +140,7 @@ export default function FinancialReportsScreen() {
         return {
           id: booking.id,
           userName: userName || 'Usuario Desconocido',
-          accommodationName: booking.accommodations?.name || 'Alojamiento Desconocido', 
+          accommodationName: booking.accommodations?.name || 'Alojamiento Desconocido',
           check_in_date: booking.check_in_date,
           check_out_date: booking.check_out_date,
           guests: booking.guests,
@@ -135,6 +148,10 @@ export default function FinancialReportsScreen() {
           status: booking.status,
           payment_status: booking.payment_status,
           created_at: booking.created_at,
+          userAddress: 'No especificado',
+          userEmail: booking.profiles?.email || 'No especificado',
+          userId: booking.user_id,
+          isGeneratingInvoice: false, // Inicializar el estado de carga para cada reserva
         };
       }) || [];
 
@@ -152,8 +169,91 @@ export default function FinancialReportsScreen() {
 
     } catch (error) {
       console.error('Unhandled error in fetchFinancialData:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado al cargar los datos.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generateInvoiceForBooking = async (bookingToGenerate: BookingDetail) => {
+    // Actualiza el estado de carga solo para la reserva específica
+    setBookingDetails(prev => prev.map(b =>
+      b.id === bookingToGenerate.id ? { ...b, isGeneratingInvoice: true } : b
+    ));
+
+    try {
+      if (Platform.OS === 'android') {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permiso requerido', 'Se necesita acceso al almacenamiento para guardar el PDF');
+          return;
+        }
+      }
+
+      const taxRate = 0.16;
+      const subtotal = bookingToGenerate.total_price / (1 + taxRate);
+      const taxAmount = bookingToGenerate.total_price - subtotal;
+
+      const checkInDateFormatted = new Date(bookingToGenerate.check_in_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const checkOutDateFormatted = new Date(bookingToGenerate.check_out_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const invoiceDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+      const invoiceData = {
+        invoiceNumber: `INV-${bookingToGenerate.id.substring(0, 8)}-${Date.now().toString().slice(-4)}`,
+        invoiceDate: invoiceDate,
+        dueDate: dueDate,
+        userName: bookingToGenerate.userName,
+        userAddress: bookingToGenerate.userAddress || 'No especificado',
+        userEmail: bookingToGenerate.userEmail || 'No especificado',
+        userId: bookingToGenerate.userId || 'N/A',
+        accommodationName: bookingToGenerate.accommodationName,
+        checkInDate: checkInDateFormatted,
+        checkOutDate: checkOutDateFormatted,
+        guests: bookingToGenerate.guests,
+        paymentStatus: bookingToGenerate.payment_status.charAt(0).toUpperCase() + bookingToGenerate.payment_status.slice(1),
+        totalPrice: bookingToGenerate.total_price.toFixed(2),
+        subtotal: subtotal.toFixed(2),
+        taxRate: taxRate * 100,
+        taxAmount: taxAmount.toFixed(2),
+        grandTotal: bookingToGenerate.total_price.toFixed(2),
+      };
+
+      const htmlContent = getInvoiceHtml(invoiceData);
+
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        width: 612,
+        height: 792,
+        base64: false,
+      });
+
+      if (!uri) {
+        throw new Error('No se pudo generar el archivo PDF');
+      }
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Factura de Reserva ${bookingToGenerate.id.substring(0, 8)}`,
+          UTI: 'com.adobe.pdf'
+        });
+      } else {
+        Alert.alert(
+          'PDF generado',
+          `El PDF se ha guardado en: ${uri}`,
+          [{ text: 'OK' }]
+        );
+      }
+
+    } catch (error: any) {
+      console.error('Error al generar la factura:', error);
+      Alert.alert('Error', `Fallo al generar la factura: ${error.message || 'Error desconocido'}`);
+    } finally {
+      // Restablece el estado de carga solo para la reserva específica
+      setBookingDetails(prev => prev.map(b =>
+        b.id === bookingToGenerate.id ? { ...b, isGeneratingInvoice: false } : b
+      ));
     }
   };
 
@@ -226,6 +326,21 @@ export default function FinancialReportsScreen() {
             <Text style={[styles.statusText, { color: getBookingStatusColor(booking.status) }]}>Estado: {booking.status}</Text>
           </View>
         </View>
+        {/* Nuevo botón para generar factura en cada tarjeta */}
+        <TouchableOpacity
+          onPress={() => generateInvoiceForBooking(booking)}
+          style={styles.generateInvoiceButtonCard}
+          disabled={booking.isGeneratingInvoice}
+        >
+          {booking.isGeneratingInvoice ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <FileText size={18} color="#FFFFFF" />
+          )}
+          <Text style={styles.generateInvoiceButtonCardText}>
+            {booking.isGeneratingInvoice ? 'Generando...' : 'Generar Factura'}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -248,6 +363,7 @@ export default function FinancialReportsScreen() {
           <ArrowLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.title}>Reportes Financieros</Text>
+        {/* Eliminar el botón global de generar factura del encabezado */}
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.statsGrid}>
@@ -325,6 +441,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start', // Alineado a la izquierda para el botón de retroceso
     backgroundColor: '#111827',
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -339,6 +456,22 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: 'bold',
+    // No flex: 1 aquí, para que el título no ocupe todo el espacio si no hay botón a la derecha
+  },
+  generateInvoiceButton: { // Este estilo ya no se usa en el encabezado
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginLeft: 10,
+  },
+  generateInvoiceButtonText: { // Este estilo ya no se usa en el encabezado
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   content: {
     flex: 1,
@@ -461,5 +594,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
-  }
+  },
+  // Nuevo estilo para el botón de generar factura en la tarjeta de reserva
+  generateInvoiceButtonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginTop: 15,
+  },
+  generateInvoiceButtonCardText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
 });

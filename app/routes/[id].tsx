@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ArrowLeft, Star, MapPin, Flag, Clock, Edit, Trash2, Share2 } from 'lucide-react-native';
+import { ArrowLeft, Star, MapPin, Flag, Clock, Edit, Trash2, Share2, MapPinned, Tag } from 'lucide-react-native';
 import { supabase } from '../../src/services/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -34,6 +34,18 @@ interface Route {
   is_verified: boolean;
   is_active: boolean;
   images?: { image_url: string; is_primary: boolean }[];
+  points_of_interest?: PointOfInterest[]; // Añadir puntos de interés a la interfaz de la ruta
+}
+
+// Interfaz para los puntos de interés (debe coincidir con la de la base de datos)
+interface PointOfInterest {
+  id: string;
+  route_id: string;
+  name: string;
+  description: string | null;
+  poi_type: 'viewpoint' | 'rest_area' | 'water_source' | 'bike_shop' | 'restaurant' | 'other' | null;
+  coordinates: string; // Formato 'point' de PostgreSQL, ej: '(lat,lon)'
+  created_at: string;
 }
 
 export const RouteDetailScreen = () => {
@@ -62,7 +74,7 @@ export const RouteDetailScreen = () => {
   const fetchRouteDetails = async () => {
     try {
       setLoading(true);
-      
+
       const { data: routeData, error: routeError } = await supabase
         .from('routes')
         .select('*')
@@ -78,13 +90,23 @@ export const RouteDetailScreen = () => {
 
       if (imagesError) console.error('Error fetching images:', imagesError);
 
+      // Fetch points of interest
+      const { data: poiData, error: poiError } = await supabase
+        .from('route_points_of_interest')
+        .select('*')
+        .eq('route_id', id);
+
+      if (poiError) console.error('Error fetching points of interest:', poiError);
+
+
       const route = {
         ...routeData,
-        images: imagesData || []
+        images: imagesData || [],
+        points_of_interest: poiData || [], // Asignar los POI
       };
 
       setRoute(route);
-      
+
       setFormData({
         name: routeData.name,
         description: routeData.description,
@@ -112,10 +134,10 @@ export const RouteDetailScreen = () => {
 
   const handleUpdateRoute = async () => {
     if (!route) return;
-    
+
     try {
       setIsUpdating(true);
-      
+
       const { error } = await supabase
         .from('routes')
         .update({
@@ -148,10 +170,18 @@ export const RouteDetailScreen = () => {
 
   const handleDeleteRoute = async () => {
     if (!route) return;
-    
+
     try {
       setIsDeleting(true);
-      
+
+      // Eliminar puntos de interés asociados primero
+      const { error: poiDeleteError } = await supabase
+        .from('route_points_of_interest')
+        .delete()
+        .eq('route_id', route.id);
+
+      if (poiDeleteError) throw poiDeleteError;
+
       const { error: imagesError } = await supabase
         .from('route_images')
         .delete()
@@ -227,6 +257,32 @@ export const RouteDetailScreen = () => {
     }
   };
 
+  const openPoiMaps = (coordinates: string) => {
+    if (coordinates) {
+      // Las coordenadas vienen como '(lat,lon)'
+      const cleanedCoords = coordinates.replace(/[()]/g, '');
+      Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(cleanedCoords)}`);
+    }
+  };
+
+  const getPoiTypeIcon = (type: PointOfInterest['poi_type']) => {
+    switch (type) {
+      case 'viewpoint': return <MapPinned size={16} color="#8B5CF6" />;
+      case 'rest_area': return <Tag size={16} color="#10B981" />;
+      case 'water_source': return <MapPin size={16} color="#3B82F6" />;
+      case 'bike_shop': return <Tag size={16} color="#F59E0B" />;
+      case 'restaurant': return <Tag size={16} color="#EF4444" />;
+      case 'other': return <Tag size={16} color="#9CA3AF" />;
+      default: return <Tag size={16} color="#9CA3AF" />;
+    }
+  };
+
+  const getPoiTypeText = (type: PointOfInterest['poi_type']) => {
+    if (!type) return 'Otro';
+    return type.replace('_', ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+
   if (loading || !route) {
     return (
       <View style={styles.loadingContainer}>
@@ -245,22 +301,22 @@ export const RouteDetailScreen = () => {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          
+
           <View style={styles.actions}>
-            <TouchableOpacity 
-              onPress={handleShareRoute} 
+            <TouchableOpacity
+              onPress={handleShareRoute}
               style={styles.shareButton}
             >
               <Share2 size={20} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => setEditModalVisible(true)} 
+            <TouchableOpacity
+              onPress={() => setEditModalVisible(true)}
               style={styles.editButton}
             >
               <Edit size={20} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => setDeleteModalVisible(true)} 
+            <TouchableOpacity
+              onPress={() => setDeleteModalVisible(true)}
               style={styles.deleteButton}
             >
               <Trash2 size={20} color="#FFFFFF" />
@@ -299,13 +355,13 @@ export const RouteDetailScreen = () => {
                 {route.is_active ? 'Activa' : 'Inactiva'}
               </Text>
             </View>
-            
+
             {route.is_verified && (
               <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedText}>✓ Verificada</Text>
               </View>
             )}
-            
+
             {route.is_loop && (
               <View style={styles.loopBadge}>
                 <Flag size={14} color="#8B5CF6" />
@@ -320,21 +376,21 @@ export const RouteDetailScreen = () => {
               <Text style={styles.infoLabel}>Distancia</Text>
               <Text style={styles.infoValue}>{route.distance} km</Text>
             </View>
-            
+
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Dificultad</Text>
               <Text style={[styles.infoValue, { color: getDifficultyColor() }]}>
                 {route.difficulty.charAt(0).toUpperCase() + route.difficulty.slice(1)}
               </Text>
             </View>
-            
+
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Tiempo estimado</Text>
               <Text style={styles.infoValue}>
                 {formatTime(route.estimated_time)}
               </Text>
             </View>
-            
+
             {route.elevation_gain && (
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Elevación</Text>
@@ -346,8 +402,8 @@ export const RouteDetailScreen = () => {
           {/* Ubicaciones */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recorrido</Text>
-            <TouchableOpacity 
-              style={styles.locationItem} 
+            <TouchableOpacity
+              style={styles.locationItem}
               onPress={() => openMaps(route.start_location)}
             >
               <MapPin size={16} color="#8B5CF6" />
@@ -356,8 +412,8 @@ export const RouteDetailScreen = () => {
                 {route.start_location}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.locationItem} 
+            <TouchableOpacity
+              style={styles.locationItem}
               onPress={() => openMaps(route.end_location)}
             >
               <MapPin size={16} color="#EF4444" />
@@ -367,6 +423,35 @@ export const RouteDetailScreen = () => {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Sección de Puntos de Interés */}
+          {route.points_of_interest && route.points_of_interest.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Puntos de Interés ({route.points_of_interest.length})</Text>
+              {route.points_of_interest.map((poi) => (
+                <TouchableOpacity
+                  key={poi.id}
+                  style={styles.poiItem}
+                  onPress={() => openPoiMaps(poi.coordinates)}
+                >
+                  <View style={styles.poiIconContainer}>
+                    {getPoiTypeIcon(poi.poi_type)}
+                  </View>
+                  <View style={styles.poiInfo}>
+                    <Text style={styles.poiName}>{poi.name}</Text>
+                    {poi.description && (
+                      <Text style={styles.poiDescription} numberOfLines={2}>
+                        {poi.description}
+                      </Text>
+                    )}
+                    <Text style={styles.poiMeta}>
+                      {getPoiTypeText(poi.poi_type)} | Coordenadas: {poi.coordinates}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           {/* Descripción */}
           <View style={styles.section}>
@@ -380,8 +465,8 @@ export const RouteDetailScreen = () => {
           {route.images && route.images.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Galería ({route.images.length})</Text>
-              <ScrollView 
-                horizontal 
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.galleryContainer}
               >
@@ -408,7 +493,7 @@ export const RouteDetailScreen = () => {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Editar Ruta</Text>
-            
+
             <ScrollView style={styles.modalScroll}>
               <Text style={styles.inputLabel}>Nombre</Text>
               <TextInput
@@ -417,7 +502,7 @@ export const RouteDetailScreen = () => {
                 onChangeText={(text) => setFormData({...formData, name: text})}
                 placeholder="Nombre de la ruta"
               />
-              
+
               <Text style={styles.inputLabel}>Descripción</Text>
               <TextInput
                 style={[styles.input, styles.multilineInput]}
@@ -427,7 +512,7 @@ export const RouteDetailScreen = () => {
                 multiline
                 numberOfLines={4}
               />
-              
+
               <View style={styles.rowInputs}>
                 <View style={styles.rowInput}>
                   <Text style={styles.inputLabel}>Distancia (km)</Text>
@@ -439,7 +524,7 @@ export const RouteDetailScreen = () => {
                     keyboardType="numeric"
                   />
                 </View>
-                
+
                 <View style={styles.rowInput}>
                   <Text style={styles.inputLabel}>Elevación (m)</Text>
                   <TextInput
@@ -451,7 +536,7 @@ export const RouteDetailScreen = () => {
                   />
                 </View>
               </View>
-              
+
               <Text style={styles.inputLabel}>Dificultad</Text>
               <View style={styles.difficultyButtons}>
                 {(['easy', 'moderate', 'hard', 'expert'] as const).map((level) => (
@@ -474,7 +559,7 @@ export const RouteDetailScreen = () => {
                   </TouchableOpacity>
                 ))}
               </View>
-              
+
               <Text style={styles.inputLabel}>Tiempo estimado (minutos)</Text>
               <TextInput
                 style={styles.input}
@@ -483,7 +568,7 @@ export const RouteDetailScreen = () => {
                 placeholder="Opcional"
                 keyboardType="numeric"
               />
-              
+
               <Text style={styles.inputLabel}>Ubicación de inicio</Text>
               <TextInput
                 style={styles.input}
@@ -491,7 +576,7 @@ export const RouteDetailScreen = () => {
                 onChangeText={(text) => setFormData({...formData, start_location: text})}
                 placeholder="Dirección o coordenadas"
               />
-              
+
               <Text style={styles.inputLabel}>Ubicación de fin</Text>
               <TextInput
                 style={styles.input}
@@ -499,7 +584,7 @@ export const RouteDetailScreen = () => {
                 onChangeText={(text) => setFormData({...formData, end_location: text})}
                 placeholder="Dirección o coordenadas"
               />
-              
+
               <View style={styles.switchContainer}>
                 <Text style={styles.switchLabel}>Ruta circular</Text>
                 <TouchableOpacity
@@ -514,7 +599,7 @@ export const RouteDetailScreen = () => {
                   </Text>
                 </TouchableOpacity>
               </View>
-              
+
               <View style={styles.switchContainer}>
                 <Text style={styles.switchLabel}>Activa</Text>
                 <TouchableOpacity
@@ -530,7 +615,7 @@ export const RouteDetailScreen = () => {
                 </TouchableOpacity>
               </View>
             </ScrollView>
-            
+
             <View style={styles.modalButtons}>
               <Pressable
                 style={[styles.modalButton, styles.cancelButton]}
@@ -567,7 +652,7 @@ export const RouteDetailScreen = () => {
             <Text style={styles.deleteText}>
               ¿Estás seguro que deseas eliminar la ruta "{route.name}"? Esta acción no se puede deshacer.
             </Text>
-            
+
             <View style={styles.modalButtons}>
               <Pressable
                 style={[styles.modalButton, styles.cancelButton]}
@@ -923,6 +1008,37 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 20,
     textAlign: 'center',
+  },
+  // Nuevos estilos para Puntos de Interés en RouteDetailScreen
+  poiItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  poiIconContainer: {
+    marginRight: 12,
+    marginTop: 4,
+  },
+  poiInfo: {
+    flex: 1,
+  },
+  poiName: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  poiDescription: {
+    color: '#D1D5DB',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  poiMeta: {
+    color: '#9CA3AF',
+    fontSize: 12,
   },
 });
 

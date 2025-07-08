@@ -12,16 +12,28 @@ import {
   Linking,
   Modal,
   TextInput,
+  ActivityIndicator, // Asegúrate de que ActivityIndicator esté importado
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, Star, MapPin, Clock, Mountain, Route, Share2, Flag, X } from 'lucide-react-native';
+import { ArrowLeft, Heart, Star, MapPin, Clock, Mountain, Route, Share2, Flag, X, MapPinned, Tag } from 'lucide-react-native'; // Añadidos MapPinned y Tag
 import { supabase } from '../../src/services/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
-import { useI18n } from '../../src/hooks/useI18n';
+import { useI18n } from '../../src/hooks/useI18n'; // Corregida la importación
 import { Button } from '../../src/components/ui/Button';
 
 const { width } = Dimensions.get('window');
+
+// Interfaz para los puntos de interés (debe coincidir con la de la base de datos)
+interface PointOfInterest {
+  id: string;
+  route_id: string;
+  name: string;
+  description: string | null;
+  poi_type: 'viewpoint' | 'rest_area' | 'water_source' | 'bike_shop' | 'restaurant' | 'other' | null;
+  coordinates: string; // Formato 'point' de PostgreSQL, ej: '(lat,lon)'
+  created_at: string;
+}
 
 interface RouteData {
   id: string;
@@ -31,9 +43,9 @@ interface RouteData {
   elevation_gain: number;
   difficulty: string;
   estimated_time: number;
+  is_loop: boolean;
   start_location: string;
   end_location: string;
-  is_loop: boolean;
   route_images: Array<{
     image_url: string;
     is_primary: boolean;
@@ -53,6 +65,7 @@ interface RouteData {
     last_name: string;
     avatar_url: string;
   };
+  points_of_interest?: PointOfInterest[]; // Añadimos los puntos de interés a la interfaz de la ruta
 }
 
 export default function RouteDetailScreen() {
@@ -74,24 +87,54 @@ export default function RouteDetailScreen() {
     }
   }, [id, user]);
 
+  // Nuevo useEffect para depurar el estado de la ruta después de la actualización
+  useEffect(() => {
+    if (route) {
+      console.log('Estado actual de la ruta en useEffect:', route);
+      console.log('Puntos de interés en el estado de la ruta (useEffect):', route.points_of_interest);
+      if (route.points_of_interest && route.points_of_interest.length > 0) {
+        console.log('Cantidad de POIs en useEffect:', route.points_of_interest.length);
+      } else {
+        console.log('No hay POIs en el estado de la ruta (useEffect)');
+      }
+    }
+  }, [route]);
+
+
   const fetchRoute = async () => {
     try {
+      setLoading(true); // Asegúrate de que el loading se active al inicio de la carga
+
       const { data, error } = await supabase
         .from('routes')
         .select(`
           *,
           route_images(*),
           route_reviews(*, profiles(first_name, avatar_url)),
-          profiles(first_name, last_name, avatar_url)
+          profiles(first_name, last_name, avatar_url),
+          route_points_of_interest(*)
         `)
         .eq('id', id)
         .single();
 
-      if (error) throw error;
-      setRoute(data);
+      if (error) {
+        console.error('Error fetching route:', error);
+        throw error; // Lanza el error para que el catch lo maneje
+      }
+
+      // *** CORRECCIÓN CLAVE AQUÍ ***
+      // Mapea route_points_of_interest de la respuesta de Supabase a points_of_interest para el estado
+      const formattedData: RouteData = {
+        ...data,
+        points_of_interest: data.route_points_of_interest || [], // Asegura que sea un array vacío si no hay POIs
+      };
+
+      setRoute(formattedData);
+      // *** IMPORTANTE PARA DEPURAR: Muestra los puntos de interés en la consola ***
+      console.log('Puntos de interés cargados (desde el objeto data de Supabase):', data.route_points_of_interest);
     } catch (error) {
-      console.error('Error fetching route:', error);
-      Alert.alert('Error', 'Failed to load route details');
+      console.error('Error fetching route details:', error);
+      Alert.alert('Error', 'No se pudo cargar los detalles de la ruta');
     } finally {
       setLoading(false);
     }
@@ -99,7 +142,7 @@ export default function RouteDetailScreen() {
 
   const checkIfFavorite = async () => {
     if (!user) return;
-    
+
     try {
       const { data } = await supabase
         .from('favorite_routes')
@@ -107,16 +150,17 @@ export default function RouteDetailScreen() {
         .eq('user_id', user.id)
         .eq('route_id', id)
         .single();
-      
+
       setIsFavorite(!!data);
     } catch (error) {
-      // Not a favorite
+      // Not a favorite, no need to show alert for this specific error
+      console.log('Not a favorite or error checking favorite status:', error);
     }
   };
 
   const toggleFavorite = async () => {
     if (!user) {
-      Alert.alert('Error', 'Please sign in to save favorites');
+      Alert.alert('Error', 'Por favor, inicia sesión para guardar favoritos');
       return;
     }
 
@@ -138,13 +182,13 @@ export default function RouteDetailScreen() {
       setIsFavorite(!isFavorite);
     } catch (error) {
       console.error('Error toggling favorite:', error);
-      Alert.alert('Error', 'Failed to update favorite');
+      Alert.alert('Error', 'No se pudo actualizar el favorito');
     }
   };
 
   const shareRoute = async () => {
     if (!route) return;
-    
+
     try {
       const shareOptions = {
         message: `Mira esta ruta que encontré: ${route.name}\n\nDistancia: ${route.distance}km\nDificultad: ${getDifficultyText(route.difficulty)}\n\nDescripción: ${route.description.substring(0, 100)}...`,
@@ -160,7 +204,7 @@ export default function RouteDetailScreen() {
 
   const shareOnWhatsApp = async () => {
     if (!route) return;
-    
+
     const url = `whatsapp://send?text=Mira esta ruta que encontré: ${route.name} - ${route.distance}km, Dificultad: ${getDifficultyText(route.difficulty)}. Más info: https://tusitio.com/rutas/${route.id}`;
     try {
       await Linking.openURL(url);
@@ -171,7 +215,7 @@ export default function RouteDetailScreen() {
 
   const shareOnTelegram = async () => {
     if (!route) return;
-    
+
     const url = `tg://msg?text=Mira esta ruta que encontré: ${route.name} - ${route.distance}km, Dificultad: ${getDifficultyText(route.difficulty)}. Más info: https://tusitio.com/rutas/${route.id}`;
     try {
       await Linking.openURL(url);
@@ -262,11 +306,41 @@ export default function RouteDetailScreen() {
     return `${mins}m`;
   };
 
+  const openPoiMaps = (coordinates: string) => {
+    if (coordinates) {
+      // Las coordenadas vienen como '(lat,lon)'
+      // Nota: La longitud 479942 en tu consola es un valor inválido.
+      // Las longitudes deben estar entre -180 y +180.
+      // Asegúrate de que los datos en tu base de datos sean correctos para que el mapa funcione.
+      const cleanedCoords = coordinates.replace(/[()]/g, '');
+      Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(cleanedCoords)}`);
+    }
+  };
+
+  const getPoiTypeIcon = (type: PointOfInterest['poi_type']) => {
+    switch (type) {
+      case 'viewpoint': return <MapPinned size={16} color="#4ADE80" />;
+      case 'rest_area': return <Tag size={16} color="#F59E0B" />;
+      case 'water_source': return <MapPin size={16} color="#3B82F6" />;
+      case 'bike_shop': return <Tag size={16} color="#8B5CF6" />;
+      case 'restaurant': return <Tag size={16} color="#EF4444" />;
+      case 'other': return <Tag size={16} color="#9CA3AF" />;
+      default: return <Tag size={16} color="#9CA3AF" />;
+    }
+  };
+
+  const getPoiTypeText = (type: PointOfInterest['poi_type']) => {
+    if (!type) return 'Otro';
+    return type.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color="#8B5CF6" />
+          <Text style={styles.loadingText}>Cargando ruta...</Text>
         </View>
       </SafeAreaView>
     );
@@ -276,16 +350,16 @@ export default function RouteDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Route not found</Text>
-          <Button title="Go Back" onPress={() => router.back()} />
+          <Text style={styles.errorText}>Ruta no encontrada.</Text>
+          <Button title="Volver atrás" onPress={() => router.back()} />
         </View>
       </SafeAreaView>
     );
   }
 
   const averageRating = calculateAverageRating();
-  const images = route.route_images.length > 0 
-    ? route.route_images 
+  const images = route.route_images.length > 0
+    ? route.route_images
     : [{ image_url: 'https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg', is_primary: true }];
 
   return (
@@ -310,21 +384,21 @@ export default function RouteDetailScreen() {
               />
             ))}
           </ScrollView>
-          
+
           {/* Header Controls */}
           <View style={styles.headerControls}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <ArrowLeft size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.rightHeaderButtons}>
-              <TouchableOpacity 
-                style={styles.shareButton} 
+              <TouchableOpacity
+                style={styles.shareButton}
                 onPress={shareRoute}
               >
                 <Share2 size={24} color="#FFFFFF" />
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.reportButton} 
+              <TouchableOpacity
+                style={styles.reportButton}
                 onPress={openReportModal}
               >
                 <Flag size={24} color="#FFFFFF" />
@@ -380,13 +454,13 @@ export default function RouteDetailScreen() {
               <Text style={styles.statLabel}>{t('route.distance')}</Text>
               <Text style={styles.statValue}>{route.distance} km</Text>
             </View>
-            
+
             <View style={styles.statItem}>
               <Mountain size={20} color="#4ADE80" />
               <Text style={styles.statLabel}>{t('route.elevation')}</Text>
               <Text style={styles.statValue}>{route.elevation_gain || 0} m</Text>
             </View>
-            
+
             <View style={styles.statItem}>
               <Clock size={20} color="#4ADE80" />
               <Text style={styles.statLabel}>{t('route.estimatedTime')}</Text>
@@ -409,10 +483,10 @@ export default function RouteDetailScreen() {
             <Text style={styles.description}>{route.description}</Text>
           </View>
 
-          {/* Route Points */}
+          {/* Route Points (Start and End) */}
           <View style={styles.routePointsSection}>
             <Text style={styles.sectionTitle}>Puntos de la ruta</Text>
-            
+
             <View style={styles.routePoint}>
               <View style={styles.routePointIcon}>
                 <MapPin size={16} color="#4ADE80" />
@@ -442,30 +516,49 @@ export default function RouteDetailScreen() {
             </View>
           </View>
 
-          {/* Points of Interest */}
-          <View style={styles.poiSection}>
-            <Text style={styles.sectionTitle}>{t('route.pointsOfInterest')}</Text>
-            <View style={styles.poiList}>
-              <View style={styles.poiItem}>
-                <View style={styles.poiIcon}>
-                  <Mountain size={16} color="#4ADE80" />
-                </View>
-                <Text style={styles.poiText}>Mirador panorámico</Text>
-              </View>
-              <View style={styles.poiItem}>
-                <View style={styles.poiIcon}>
-                  <MapPin size={16} color="#4ADE80" />
-                </View>
-                <Text style={styles.poiText}>Área de descanso</Text>
+          {/* Points of Interest - Dynamic Rendering */}
+          {/* DEBUG: Log del estado de los POIs justo antes del renderizado condicional */}
+          {console.log('Puntos de interés en el estado de la ruta (antes de renderizar):', route.points_of_interest)}
+          {route.points_of_interest && route.points_of_interest.length > 0 ? (
+            <View style={styles.poiSection}>
+              <Text style={styles.sectionTitle}>{t('route.pointsOfInterest')} ({route.points_of_interest.length})</Text>
+              <View style={styles.poiList}>
+                {route.points_of_interest.map((poi) => (
+                  <TouchableOpacity
+                    key={poi.id}
+                    style={styles.poiItem}
+                    onPress={() => openPoiMaps(poi.coordinates)}
+                  >
+                    <View style={styles.poiIcon}>
+                      {getPoiTypeIcon(poi.poi_type)}
+                    </View>
+                    <View style={styles.poiContent}>
+                      <Text style={styles.poiText}>{poi.name}</Text>
+                      {poi.description && (
+                        <Text style={styles.poiDescriptionText} numberOfLines={2}>
+                          {poi.description}
+                        </Text>
+                      )}
+                      <Text style={styles.poiMetaText}>
+                        {getPoiTypeText(poi.poi_type)} | {poi.coordinates}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.poiSection}>
+              <Text style={styles.sectionTitle}>{t('route.pointsOfInterest')}</Text>
+              <Text style={styles.emptyPoiText}>No hay puntos de interés para esta ruta.</Text>
+            </View>
+          )}
 
           {/* Reviews */}
           {route.route_reviews.length > 0 && (
             <View style={styles.reviewsSection}>
               <Text style={styles.sectionTitle}>{t('route.reviews')}</Text>
-              
+
               <View style={styles.reviewsList}>
                 {route.route_reviews.slice(0, 2).map((review, index) => (
                   <View key={index} style={styles.reviewItem}>
@@ -535,18 +628,18 @@ export default function RouteDetailScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reportar problema</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.closeButton}
                 onPress={() => setReportModalVisible(false)}
               >
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.modalSubtitle}>Selecciona el tipo de problema:</Text>
-            
+
             <View style={styles.categoryButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.categoryButton,
                   reportCategory === 'danger' && styles.categoryButtonSelected
@@ -555,8 +648,8 @@ export default function RouteDetailScreen() {
               >
                 <Text style={styles.categoryButtonText}>Peligro en la ruta</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[
                   styles.categoryButton,
                   reportCategory === 'incorrect_info' && styles.categoryButtonSelected
@@ -565,8 +658,8 @@ export default function RouteDetailScreen() {
               >
                 <Text style={styles.categoryButtonText}>Información incorrecta</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[
                   styles.categoryButton,
                   reportCategory === 'other' && styles.categoryButtonSelected
@@ -576,7 +669,7 @@ export default function RouteDetailScreen() {
                 <Text style={styles.categoryButtonText}>Otro problema</Text>
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.modalSubtitle}>Describe el problema:</Text>
             <TextInput
               style={styles.reportInput}
@@ -586,7 +679,7 @@ export default function RouteDetailScreen() {
               value={reportText}
               onChangeText={setReportText}
             />
-            
+
             <Button
               title="Enviar reporte"
               onPress={submitReport}
@@ -598,6 +691,7 @@ export default function RouteDetailScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -1009,5 +1103,22 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     width: '100%',
+  },
+  poiContent: {
+    flex: 1,
+  },
+  poiDescriptionText: {
+    color: '#D1D5DB',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  poiMetaText: {
+    color: '#9CA3AF',
+    fontSize: 12,
+  },
+    emptyPoiText: { // Este estilo es para cuando no hay POIs
+    color: '#D1D5DB',
+    textAlign: 'center',
+    marginTop: 10,
   },
 });
