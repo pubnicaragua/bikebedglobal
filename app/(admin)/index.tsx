@@ -278,7 +278,7 @@ export default function AdminDashboardScreen() {
           {/* Nuevo botón para Reportes Financieros */}
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => router.push('/')}
+            onPress={() => router.push('/(admin)/financialReport')}
           >
             <View style={styles.actionIcon}>
               <DollarSign size={20} color="#10B981" />
