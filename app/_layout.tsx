@@ -19,6 +19,8 @@ export default function RootLayout() {
         <Stack.Screen name="route/[id]" />
         <Stack.Screen name="booking/create" />
         <Stack.Screen name="chat/index" />
+        <Stack.Screen name="chat/HistoryChat" />
+        <Stack.Screen name="chat/[id]" />        
         <Stack.Screen name="+not-found" />
         <Stack.Screen name="routes/[id]" />
         <Stack.Screen name="payHistory/[id]" />

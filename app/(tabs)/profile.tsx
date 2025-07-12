@@ -115,7 +115,7 @@ export default function ProfileScreen() {
     {
       icon: History,
       title: t('profile.history'),
-      onPress: () => console.log('History'),
+      onPress: () => router.push('/chat/HistoryChat'), // <--- CAMBIO AQUÍ
     },
     {
       icon: Heart,
